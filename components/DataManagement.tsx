@@ -1,8 +1,16 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { User, Schedule, DayNotes } from '@/types'
 import { Download, Upload, Database, Shield } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 
 interface DataManagementProps {
   users: User[]
@@ -13,6 +21,7 @@ interface DataManagementProps {
 
 export function DataManagement({ users, schedule, notes, onImportAll }: DataManagementProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState(false)
 
   const handleExportAll = () => {
     const data = {
@@ -37,6 +46,7 @@ export function DataManagement({ users, schedule, notes, onImportAll }: DataMana
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+    setOpen(false)
   }
 
   const handleImportAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,6 +75,7 @@ Tüm mevcut veriler silinip yerine bu veriler yüklenecek. Devam edilsin mi?
               schedule: data.schedule,
               notes: data.notes || {}
             })
+            setOpen(false)
           }
         } else {
           alert('Geçersiz dosya formatı! Lütfen tam yedek dosyası seçin.')
@@ -82,53 +93,62 @@ Tüm mevcut veriler silinip yerine bu veriler yüklenecek. Devam edilsin mi?
   }
 
   return (
-    <div className="bg-gradient-to-br from-cyber-purple/10 via-cyber-pink/10 to-cyber-blue/10 rounded-xl p-6 border-2 border-border shadow-[0_0_30px_rgba(131,56,236,0.2)]">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-cyber-purple/20 rounded-lg">
-          <Database className="w-6 h-6 text-cyber-purple" />
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          className="fixed bottom-6 left-6 p-4 bg-gradient-to-r from-cyber-purple to-cyber-pink rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(131,56,236,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
+          title="Veri Yönetimi"
+        >
+          <Database className="w-6 h-6 text-white group-hover:scale-110 transition-transform duration-300" />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-2xl">
+            <Database className="w-6 h-6 text-cyber-purple" />
+            <span className="glow-text">Veri Yönetimi</span>
+          </DialogTitle>
+          <DialogDescription>
+            Tüm kullanıcıları ve schedule'ı yedekleyin veya geri yükleyin
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <button
+            onClick={handleExportAll}
+            disabled={users.length === 0}
+            className="w-full px-4 py-4 bg-gradient-to-r from-cyber-green/20 to-cyber-cyan/20 border-2 border-cyber-green/50 text-cyber-green rounded-lg hover:shadow-[0_0_25px_rgba(6,255,0,0.4)] transition-all font-bold inline-flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
+          >
+            <Download className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span>Tam Yedek Al (JSON)</span>
+            <Shield className="w-4 h-4 opacity-50" />
+          </button>
+          
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full px-4 py-4 bg-gradient-to-r from-cyber-blue/20 to-cyber-purple/20 border-2 border-cyber-blue/50 text-cyber-blue rounded-lg hover:shadow-[0_0_25px_rgba(58,134,255,0.4)] transition-all font-bold inline-flex items-center justify-center gap-3 group"
+          >
+            <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span>Yedeği Geri Yükle</span>
+            <Shield className="w-4 h-4 opacity-50" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleImportAll}
+            className="hidden"
+          />
+
+          <div className="p-4 bg-muted/50 border border-border rounded-lg mt-4">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              <span className="text-lg mr-1">💡</span>
+              <strong className="text-foreground">İpucu:</strong> Düzenli yedek almayı unutmayın! 
+              Tam yedek kullanıcıları, schedule'ı ve notları içerir.
+            </p>
+          </div>
         </div>
-        <h3 className="text-lg font-bold text-foreground">Veri Yönetimi</h3>
-      </div>
-      
-      <p className="text-sm text-muted-foreground mb-6">
-        Tüm kullanıcıları ve schedule'ı yedekleyin veya geri yükleyin
-      </p>
-
-      <div className="flex flex-col gap-3">
-        <button
-          onClick={handleExportAll}
-          disabled={users.length === 0}
-          className="w-full px-4 py-4 bg-gradient-to-r from-cyber-green/20 to-cyber-cyan/20 border-2 border-cyber-green/50 text-cyber-green rounded-lg hover:shadow-[0_0_25px_rgba(6,255,0,0.4)] transition-all font-bold inline-flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
-        >
-          <Download className="w-5 h-5 group-hover:scale-110 transition-transform" />
-          <span>Tam Yedek Al (JSON)</span>
-          <Shield className="w-4 h-4 opacity-50" />
-        </button>
-        
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full px-4 py-4 bg-gradient-to-r from-cyber-blue/20 to-cyber-purple/20 border-2 border-cyber-blue/50 text-cyber-blue rounded-lg hover:shadow-[0_0_25px_rgba(58,134,255,0.4)] transition-all font-bold inline-flex items-center justify-center gap-3 group"
-        >
-          <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
-          <span>Yedeği Geri Yükle</span>
-          <Shield className="w-4 h-4 opacity-50" />
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={handleImportAll}
-          className="hidden"
-        />
-      </div>
-
-      <div className="mt-6 p-4 bg-card/60 rounded-lg border border-border backdrop-blur-sm">
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          <span className="text-lg mr-1">💡</span>
-          <strong className="text-foreground">İpucu:</strong> Düzenli yedek almayı unutmayın! 
-          Tam yedek kullanıcıları, schedule'ı ve notları içerir.
-        </p>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

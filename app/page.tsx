@@ -166,39 +166,34 @@ export default function Home() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyber-purple/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
 
-      <div className="container mx-auto px-4 py-8 max-w-7xl relative z-10">
-        {/* Header */}
-        <div className="mb-8">
-          {/* Logo */}
-          <div className="flex justify-center mb-6">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 shadow-[0_4px_30px_rgba(58,134,255,0.2)]">
+        <div className="container mx-auto px-4 py-3 max-w-7xl">
+          <div className="flex items-center justify-center gap-4 md:gap-6">
+            {/* Logo */}
             <div className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-cyber-blue via-cyber-purple to-cyber-pink blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
               <img 
                 src="/logo.svg" 
                 alt="PICUS Logo" 
-                className="h-12 md:h-16 relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
+                className="h-8 md:h-10 relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
               />
             </div>
-          </div>
-          
-          {/* Title */}
-          <div className="text-center">
-            <h1 className="text-5xl md:text-6xl font-black text-foreground mb-4 glow-text flex items-center justify-center gap-4">
-              <Zap className="w-12 h-12 text-cyber-cyan animate-pulse" />
-              <span className="bg-gradient-to-r from-cyber-blue via-cyber-purple to-cyber-pink bg-clip-text text-transparent">
-                ON-CALL SCHEDULE
-              </span>
-              <Zap className="w-12 h-12 text-cyber-cyan animate-pulse" />
-            </h1>
-            <p className="text-muted-foreground text-lg font-medium">
-              Adil yük dağılımı ile nöbet çizelgesi yönetimi
-            </p>
-            <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-cyber-blue/10 border border-cyber-blue/30 rounded-full text-sm text-cyber-blue">
-              <div className="w-2 h-2 bg-cyber-cyan rounded-full animate-pulse"></div>
-              <span>Cyber Mode Active</span>
+            {/* Title */}
+            <div className="flex items-center gap-2 md:gap-3">
+              <Zap className="w-6 h-6 md:w-8 md:h-8 text-cyber-cyan animate-pulse" />
+              <h1 className="text-2xl md:text-3xl font-black text-foreground glow-text">
+                <span className="bg-gradient-to-r from-cyber-blue via-cyber-purple to-cyber-pink bg-clip-text text-transparent">
+                  ON-CALL SCHEDULE
+                </span>
+              </h1>
+              <Zap className="w-6 h-6 md:w-8 md:h-8 text-cyber-cyan animate-pulse" />
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="container mx-auto px-4 py-8 max-w-7xl relative z-10">
 
         {/* Tab Navigation */}
         <div className="flex justify-center mb-8">
@@ -232,25 +227,24 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2">
-            {activeTab === 'calendar' ? (
-              <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(58,134,255,0.3)] p-6 border-2 border-border">
-                <Calendar
-                  users={users}
-                  schedule={schedule}
-                  notes={notes}
-                  currentDate={currentDate}
-                  settings={weightSettings}
-                  onDateChange={setCurrentDate}
-                  onAssignUser={handleAssignUser}
-                  onUpdateNote={handleUpdateNote}
-                  onGenerateSchedule={handleGenerateSchedule}
-                  onResetSchedule={handleResetSchedule}
-                />
-              </div>
-            ) : (
+        <div className="max-w-5xl mx-auto">
+          {activeTab === 'calendar' ? (
+            <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(58,134,255,0.3)] p-6 border-2 border-border">
+              <Calendar
+                users={users}
+                schedule={schedule}
+                notes={notes}
+                currentDate={currentDate}
+                settings={weightSettings}
+                onDateChange={setCurrentDate}
+                onAssignUser={handleAssignUser}
+                onUpdateNote={handleUpdateNote}
+                onGenerateSchedule={handleGenerateSchedule}
+                onResetSchedule={handleResetSchedule}
+              />
+            </div>
+          ) : (
+            <div className="space-y-6">
               <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(131,56,236,0.3)] p-6 border-2 border-border">
                 <UserManagement
                   users={users}
@@ -260,24 +254,14 @@ export default function Home() {
                   onImportUsers={importUsers}
                 />
               </div>
-            )}
-          </div>
-
-          {/* Sidebar - Statistics & Data Management */}
-          <div className="lg:col-span-1 space-y-6">
-            <Statistics 
-              users={users} 
-              schedule={schedule} 
-              currentDate={currentDate}
-              settings={weightSettings}
-            />
-            <DataManagement 
-              users={users} 
-              schedule={schedule} 
-              notes={notes}
-              onImportAll={importAll} 
-            />
-          </div>
+              <Statistics 
+                users={users} 
+                schedule={schedule} 
+                currentDate={currentDate}
+                settings={weightSettings}
+              />
+            </div>
+          )}
         </div>
 
         {/* Footer Info */}
@@ -294,6 +278,14 @@ export default function Home() {
 
       {/* Settings Button (Floating) */}
       <Settings settings={weightSettings} onSettingsChange={handleSettingsChange} />
+      
+      {/* Data Management Button (Floating) */}
+      <DataManagement 
+        users={users} 
+        schedule={schedule} 
+        notes={notes}
+        onImportAll={importAll} 
+      />
     </main>
   )
 }
