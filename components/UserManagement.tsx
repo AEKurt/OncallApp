@@ -153,16 +153,30 @@ export function UserManagement({ users, onAddUser, onRemoveUser, onClearAll, onI
           users.map((user, index) => (
             <div
               key={user.id}
-              className={`group flex items-center justify-between p-4 bg-gradient-to-r ${colors[index % colors.length]}/10 rounded-lg hover:${colors[index % colors.length]}/20 transition-all border-2 border-border hover:border-cyber-blue/50 hover:shadow-[0_0_20px_rgba(58,134,255,0.2)]`}
+              className="group flex items-center justify-between p-4 bg-card/50 rounded-lg hover:bg-card transition-all border-2 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+              style={{
+                borderColor: user.color || '#3b82f6'
+              }}
             >
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 bg-gradient-to-br ${colors[index % colors.length]} rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg relative`}>
+                <div 
+                  className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg relative"
+                  style={{
+                    background: `linear-gradient(135deg, ${user.color || '#3b82f6'}, ${user.color || '#3b82f6'}dd)`
+                  }}
+                >
                   {user.name.charAt(0).toUpperCase()}
                   <Sparkles className="absolute -top-1 -right-1 w-4 h-4 text-cyber-yellow opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
                 <div>
                   <p className="font-bold text-foreground text-lg">{user.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">ID: {user.id}</p>
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full border border-white/30"
+                      style={{ backgroundColor: user.color || '#3b82f6' }}
+                    ></div>
+                    <p className="text-xs text-muted-foreground">Renk: {user.color || '#3b82f6'}</p>
+                  </div>
                 </div>
               </div>
               <button

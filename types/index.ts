@@ -2,6 +2,7 @@ export interface User {
   id: string
   name: string
   totalWeight: number
+  color?: string // User's unique color
 }
 
 export interface Schedule {

@@ -77,10 +77,28 @@ export default function Home() {
   }, [weightSettings])
 
   const addUser = (name: string) => {
+    // Color palette for users
+    const colors = [
+      '#3b82f6', // blue
+      '#8b5cf6', // purple
+      '#ec4899', // pink
+      '#f59e0b', // amber
+      '#10b981', // green
+      '#06b6d4', // cyan
+      '#f97316', // orange
+      '#84cc16', // lime
+      '#6366f1', // indigo
+      '#14b8a6', // teal
+    ]
+    
+    // Assign color based on user index
+    const userColor = colors[users.length % colors.length]
+    
     const newUser: User = {
       id: Date.now().toString(),
       name,
       totalWeight: 0,
+      color: userColor,
     }
     setUsers([...users, newUser])
   }
@@ -166,58 +184,70 @@ export default function Home() {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyber-purple/5 rounded-full blur-3xl animate-pulse delay-1000"></div>
       </div>
 
+      {/* Team Logo - Fixed Left */}
+      <div className="fixed left-8 top-24 z-40 group">
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyber-blue via-cyber-purple to-cyber-pink rounded-full blur-2xl opacity-0 group-hover:opacity-60 transition-opacity"></div>
+          <img 
+            src="/team-logo.png" 
+            alt="Team Logo" 
+            className="h-36 w-36 md:h-44 md:w-44 relative z-10 drop-shadow-[0_0_25px_rgba(255,255,255,0.4)] transition-transform group-hover:scale-105 duration-300"
+          />
+        </div>
+      </div>
+
       {/* Sticky Header */}
       <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50 shadow-[0_4px_30px_rgba(58,134,255,0.2)]">
-        <div className="container mx-auto px-4 py-3 max-w-7xl">
-          <div className="flex items-center justify-center gap-4 md:gap-6">
+        <div className="container mx-auto px-4 py-2 max-w-[1600px]">
+          <div className="flex items-center justify-center gap-3 md:gap-4">
             {/* Logo */}
             <div className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-cyber-blue via-cyber-purple to-cyber-pink blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
               <img 
                 src="/logo.svg" 
                 alt="PICUS Logo" 
-                className="h-8 md:h-10 relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
+                className="h-7 md:h-9 relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
               />
             </div>
             {/* Title */}
-            <div className="flex items-center gap-2 md:gap-3">
-              <Zap className="w-6 h-6 md:w-8 md:h-8 text-cyber-cyan animate-pulse" />
-              <h1 className="text-2xl md:text-3xl font-black text-foreground glow-text">
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 md:w-6 md:h-6 text-cyber-cyan animate-pulse" />
+              <h1 className="text-xl md:text-2xl font-black text-foreground glow-text">
                 <span className="bg-gradient-to-r from-cyber-blue via-cyber-purple to-cyber-pink bg-clip-text text-transparent">
                   ON-CALL SCHEDULE
                 </span>
               </h1>
-              <Zap className="w-6 h-6 md:w-8 md:h-8 text-cyber-cyan animate-pulse" />
+              <Zap className="w-5 h-5 md:w-6 md:h-6 text-cyber-cyan animate-pulse" />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8 max-w-7xl relative z-10">
+      <div className="container mx-auto px-4 py-4 max-w-[1600px] relative z-10">
 
         {/* Tab Navigation */}
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex rounded-xl border-2 border-border bg-card p-1.5 shadow-[0_0_30px_rgba(58,134,255,0.2)]">
+        <div className="flex justify-center mb-4">
+          <div className="inline-flex rounded-xl border-2 border-border bg-card p-1 shadow-[0_0_30px_rgba(58,134,255,0.2)]">
             <button
               onClick={() => setActiveTab('calendar')}
-              className={`inline-flex items-center px-8 py-3 rounded-lg text-sm font-bold transition-all uppercase tracking-wider ${
+              className={`inline-flex items-center px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-wider ${
                 activeTab === 'calendar'
                   ? 'bg-gradient-to-r from-cyber-blue to-cyber-purple text-white shadow-[0_0_20px_rgba(58,134,255,0.5)]'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <CalendarIcon className="w-5 h-5 mr-2" />
+              <CalendarIcon className="w-4 h-4 mr-2" />
               Takvim
             </button>
             <button
               onClick={() => setActiveTab('users')}
-              className={`inline-flex items-center px-8 py-3 rounded-lg text-sm font-bold transition-all uppercase tracking-wider ${
+              className={`inline-flex items-center px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-wider ${
                 activeTab === 'users'
                   ? 'bg-gradient-to-r from-cyber-purple to-cyber-pink text-white shadow-[0_0_20px_rgba(131,56,236,0.5)]'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Users className="w-5 h-5 mr-2" />
+              <Users className="w-4 h-4 mr-2" />
               Kullanıcılar
               <span className="ml-2 px-2 py-0.5 bg-cyber-cyan/20 text-cyber-cyan rounded-full text-xs font-mono">
                 {users.length}
@@ -227,9 +257,9 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className={activeTab === 'calendar' ? 'max-w-7xl mx-auto' : 'max-w-5xl mx-auto'}>
+        <div className="w-full">
           {activeTab === 'calendar' ? (
-            <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(58,134,255,0.3)] p-8 border-2 border-border">
+            <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(58,134,255,0.3)] p-6 border-2 border-border">
               <Calendar
                 users={users}
                 schedule={schedule}
@@ -244,7 +274,7 @@ export default function Home() {
               />
             </div>
           ) : (
-            <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(131,56,236,0.3)] p-6 border-2 border-border">
+            <div className="max-w-5xl mx-auto bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(131,56,236,0.3)] p-6 border-2 border-border">
               <UserManagement
                 users={users}
                 onAddUser={addUser}
@@ -254,20 +284,6 @@ export default function Home() {
               />
             </div>
           )}
-        </div>
-
-        {/* Footer Info */}
-        <div className="mt-8 text-center">
-          <div className="inline-flex items-center gap-3 px-6 py-3 bg-card/50 backdrop-blur-sm rounded-lg border border-border text-sm text-muted-foreground">
-            <span className="text-cyber-blue font-mono">{weightSettings.weekdayWeight.toFixed(1)}x</span>
-            <span>Hafta İçi</span>
-            <span className="text-muted-foreground/50">•</span>
-            <span className="text-cyber-purple font-mono">{weightSettings.weekendWeight.toFixed(1)}x</span>
-            <span>Hafta Sonu</span>
-            <span className="text-muted-foreground/50">•</span>
-            <span className="text-cyber-pink font-mono">{weightSettings.holidayWeight.toFixed(1)}x</span>
-            <span>Resmi Tatil</span>
-          </div>
         </div>
       </div>
 
