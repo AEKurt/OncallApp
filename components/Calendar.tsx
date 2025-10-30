@@ -5,7 +5,7 @@ import { User, Schedule, DayNotes } from '@/types'
 import { format, isSameMonth, isToday } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Wand2, Zap, RotateCcw, StickyNote, Plus } from 'lucide-react'
-import { getCalendarDays, getDayWeight, WeightSettings, DEFAULT_WEIGHTS } from '@/lib/scheduler'
+import { getCalendarDays, getDayWeight, WeightSettings, DEFAULT_WEIGHTS, isPublicHoliday, getHolidayName } from '@/lib/scheduler'
 import {
   Select,
   SelectContent,
@@ -155,18 +155,21 @@ export function Calendar({
             const isCurrentMonth = isSameMonth(date, currentDate)
             const isCurrentDay = isToday(date)
             const dayWeight = getDayWeight(date, settings)
-            const isWeekendDay = dayWeight > settings.weekdayWeight
+            const isWeekendDay = dayWeight > settings.weekdayWeight && !isPublicHoliday(date)
+            const isHoliday = isPublicHoliday(date)
+            const holidayName = getHolidayName(date)
 
             return (
               <div
                 key={dateString}
                 className={`min-h-[140px] p-3 border-r border-b border-border/50 ${
-                  !isCurrentMonth ? 'bg-muted/30' : 'bg-card'
+                  !isCurrentMonth ? 'bg-muted/30' : isHoliday ? 'bg-gradient-to-br from-cyber-pink/10 to-cyber-purple/10' : 'bg-card'
                 } ${
                   isCurrentDay
                     ? 'ring-2 ring-cyber-cyan ring-inset shadow-[inset_0_0_20px_rgba(6,255,240,0.3)]'
                     : ''
                 } transition-all hover:bg-muted/50`}
+                title={holidayName || undefined}
               >
                 <div className="flex flex-col h-full">
                   <div className="flex items-start justify-between mb-2">
@@ -174,8 +177,10 @@ export function Calendar({
                       className={`text-sm font-bold ${
                         !isCurrentMonth
                           ? 'text-muted-foreground'
-                          : isWeekendDay
+                          : isHoliday
                           ? 'text-cyber-pink'
+                          : isWeekendDay
+                          ? 'text-cyber-purple'
                           : 'text-cyber-blue'
                       } ${isCurrentDay ? 'text-cyber-cyan text-lg' : ''}`}
                     >
@@ -185,8 +190,13 @@ export function Calendar({
                       {dayNote && (
                         <StickyNote className="w-3 h-3 text-cyber-yellow" />
                       )}
+                      {isHoliday && (
+                        <span className="text-xs bg-cyber-pink/30 text-cyber-pink px-2 py-0.5 rounded-full border border-cyber-pink/50 font-mono font-bold">
+                          🎉 {dayWeight}x
+                        </span>
+                      )}
                       {isWeekendDay && (
-                        <span className="text-xs bg-cyber-pink/20 text-cyber-pink px-2 py-0.5 rounded-full border border-cyber-pink/30 font-mono">
+                        <span className="text-xs bg-cyber-purple/20 text-cyber-purple px-2 py-0.5 rounded-full border border-cyber-purple/30 font-mono">
                           {dayWeight}x
                         </span>
                       )}

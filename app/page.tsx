@@ -227,9 +227,9 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="max-w-5xl mx-auto">
+        <div className={activeTab === 'calendar' ? 'max-w-7xl mx-auto' : 'max-w-5xl mx-auto'}>
           {activeTab === 'calendar' ? (
-            <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(58,134,255,0.3)] p-6 border-2 border-border">
+            <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(58,134,255,0.3)] p-8 border-2 border-border">
               <Calendar
                 users={users}
                 schedule={schedule}
@@ -244,21 +244,13 @@ export default function Home() {
               />
             </div>
           ) : (
-            <div className="space-y-6">
-              <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(131,56,236,0.3)] p-6 border-2 border-border">
-                <UserManagement
-                  users={users}
-                  onAddUser={addUser}
-                  onRemoveUser={removeUser}
-                  onClearAll={clearAllUsers}
-                  onImportUsers={importUsers}
-                />
-              </div>
-              <Statistics 
-                users={users} 
-                schedule={schedule} 
-                currentDate={currentDate}
-                settings={weightSettings}
+            <div className="bg-card/80 backdrop-blur-sm rounded-2xl shadow-[0_0_50px_rgba(131,56,236,0.3)] p-6 border-2 border-border">
+              <UserManagement
+                users={users}
+                onAddUser={addUser}
+                onRemoveUser={removeUser}
+                onClearAll={clearAllUsers}
+                onImportUsers={importUsers}
               />
             </div>
           )}
@@ -270,14 +262,25 @@ export default function Home() {
             <span className="text-cyber-blue font-mono">{weightSettings.weekdayWeight.toFixed(1)}x</span>
             <span>Hafta İçi</span>
             <span className="text-muted-foreground/50">•</span>
-            <span className="text-cyber-pink font-mono">{weightSettings.weekendWeight.toFixed(1)}x</span>
+            <span className="text-cyber-purple font-mono">{weightSettings.weekendWeight.toFixed(1)}x</span>
             <span>Hafta Sonu</span>
+            <span className="text-muted-foreground/50">•</span>
+            <span className="text-cyber-pink font-mono">{weightSettings.holidayWeight.toFixed(1)}x</span>
+            <span>Resmi Tatil</span>
           </div>
         </div>
       </div>
 
       {/* Settings Button (Floating) */}
       <Settings settings={weightSettings} onSettingsChange={handleSettingsChange} />
+      
+      {/* Statistics Button (Floating) */}
+      <Statistics 
+        users={users} 
+        schedule={schedule} 
+        currentDate={currentDate}
+        settings={weightSettings}
+      />
       
       {/* Data Management Button (Floating) */}
       <DataManagement 

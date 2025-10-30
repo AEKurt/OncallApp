@@ -1,8 +1,17 @@
 'use client'
 
+import { useState } from 'react'
 import { User, Schedule } from '@/types'
 import { calculateUserWeights, WeightSettings, DEFAULT_WEIGHTS } from '@/lib/scheduler'
 import { BarChart3, TrendingUp, Users as UsersIcon, Award } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 
 interface StatisticsProps {
   users: User[]
@@ -12,6 +21,7 @@ interface StatisticsProps {
 }
 
 export function Statistics({ users, schedule, currentDate, settings = DEFAULT_WEIGHTS }: StatisticsProps) {
+  const [open, setOpen] = useState(false)
   const userWeights = calculateUserWeights(users, schedule, currentDate, settings)
 
   const totalWeight = Object.values(userWeights).reduce((sum, w) => sum + w, 0)
@@ -23,7 +33,27 @@ export function Statistics({ users, schedule, currentDate, settings = DEFAULT_WE
   )
 
   return (
-    <div className="space-y-4">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          className="fixed bottom-24 right-6 p-4 bg-gradient-to-r from-cyber-cyan to-cyber-blue rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(6,255,240,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
+          title="İstatistikler ve Yük Dağılımı"
+        >
+          <BarChart3 className="w-6 h-6 text-white group-hover:scale-110 transition-transform duration-300" />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-2xl">
+            <BarChart3 className="w-6 h-6 text-cyber-cyan" />
+            <span className="glow-text">İstatistikler ve Yük Dağılımı</span>
+          </DialogTitle>
+          <DialogDescription>
+            Kullanıcı istatistikleri ve nöbet yükü dağılımını görüntüleyin
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
       {/* Statistics Cards */}
       <div className="bg-card rounded-xl shadow-[0_0_30px_rgba(58,134,255,0.2)] p-6 border-2 border-border">
         <h3 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
@@ -146,10 +176,13 @@ export function Statistics({ users, schedule, currentDate, settings = DEFAULT_WE
           <p className="text-sm text-muted-foreground leading-relaxed">
             Algoritma, her kullanıcının eşit ağırlıkta yük almasını sağlar.
             Hafta içi günleri <strong className="text-cyber-blue">{settings.weekdayWeight.toFixed(1)}x</strong>,
-            hafta sonu günleri <strong className="text-cyber-pink">{settings.weekendWeight.toFixed(1)}x</strong> ağırlığa sahiptir.
+            hafta sonu günleri <strong className="text-cyber-purple">{settings.weekendWeight.toFixed(1)}x</strong>,
+            resmi tatil günleri <strong className="text-cyber-pink">{settings.holidayWeight.toFixed(1)}x</strong> ağırlığa sahiptir.
           </p>
         </div>
       )}
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

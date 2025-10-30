@@ -15,6 +15,7 @@ import { Slider } from '@/components/ui/slider'
 export interface WeightSettings {
   weekdayWeight: number
   weekendWeight: number
+  holidayWeight: number
 }
 
 interface SettingsProps {
@@ -32,7 +33,7 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
   }
 
   const handleReset = () => {
-    const defaultSettings = { weekdayWeight: 1.0, weekendWeight: 1.5 }
+    const defaultSettings = { weekdayWeight: 1.0, weekendWeight: 1.5, holidayWeight: 2.0 }
     setLocalSettings(defaultSettings)
     onSettingsChange(defaultSettings)
   }
@@ -115,11 +116,39 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
             </p>
           </div>
 
+          {/* Holiday Weight */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-foreground">
+                Resmi Tatil Ağırlığı
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold text-cyber-pink">
+                  {localSettings.holidayWeight.toFixed(1)}
+                </span>
+                <span className="text-xs text-muted-foreground">x</span>
+              </div>
+            </div>
+            <Slider
+              value={[localSettings.holidayWeight]}
+              onValueChange={([value]) =>
+                setLocalSettings({ ...localSettings, holidayWeight: value })
+              }
+              min={0.5}
+              max={5}
+              step={0.1}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Resmi tatil günleri için ağırlık çarpanı (23 Nisan, 29 Ekim, vb.)
+            </p>
+          </div>
+
           {/* Info Box */}
           <div className="p-4 bg-muted/50 border border-border rounded-lg">
             <p className="text-sm text-muted-foreground">
-              <strong className="text-foreground">💡 İpucu:</strong> Hafta sonu
-              ağırlığını artırarak, hafta sonu nöbetlerinin daha değerli
+              <strong className="text-foreground">💡 İpucu:</strong> Resmi tatil 
+              günlerini en yüksek ağırlıkla ayarlayarak, bu günlerin daha değerli
               sayılmasını sağlayabilirsiniz.
             </p>
           </div>
@@ -137,6 +166,13 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
               <div className="text-xs text-muted-foreground mb-1">Hafta Sonu</div>
               <div className="text-lg font-bold text-cyber-purple">
                 {localSettings.weekendWeight.toFixed(1)}x
+              </div>
+            </div>
+            <div className="text-muted-foreground">vs</div>
+            <div className="text-center flex-1">
+              <div className="text-xs text-muted-foreground mb-1">Resmi Tatil</div>
+              <div className="text-lg font-bold text-cyber-pink">
+                {localSettings.holidayWeight.toFixed(1)}x
               </div>
             </div>
           </div>
