@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 7%;
+    --foreground: 210 100% 95%;
+    --card: 220 25% 10%;
+    --card-foreground: 210 100% 95%;
+    --popover: 220 25% 10%;
+    --popover-foreground: 210 100% 95%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 271 91% 65%;
+    --secondary-foreground: 210 100% 95%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 217 20% 60%;
+    --accent: 184 100% 50%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 340 100% 50%;
+    --destructive-foreground: 210 100% 95%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 217 91% 60%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .cyber-border {
+    @apply border-2 border-cyber-blue/50;
+    position: relative;
+  }
+  
+  .cyber-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(45deg, #3A86FF, #8338EC, #FF006E);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  
+  .cyber-border:hover::before {
+    opacity: 1;
+  }
+  
+  .glow-text {
+    text-shadow: 0 0 10px rgba(58, 134, 255, 0.8),
+                 0 0 20px rgba(58, 134, 255, 0.6),
+                 0 0 30px rgba(131, 56, 236, 0.4);
+  }
+  
+  .cyber-grid-bg {
+    background-image: 
+      linear-gradient(rgba(58, 134, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(58, 134, 255, 0.05) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+  
+  /* Prose styles for rich text */
+  .prose {
+    line-height: 1.6;
+  }
+  
+  .prose h2 {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    color: hsl(var(--foreground));
+  }
+  
+  .prose p {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+  
+  .prose strong {
+    font-weight: bold;
+    color: hsl(var(--primary));
+  }
+  
+  .prose em {
+    font-style: italic;
+  }
+  
+  .prose u {
+    text-decoration: underline;
+  }
+  
+  .prose ul {
+    list-style-type: disc;
+    margin-left: 1.5em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+  
+  .prose ol {
+    list-style-type: decimal;
+    margin-left: 1.5em;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+  
+  .prose li {
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+  }
+}
+
