@@ -41,6 +41,8 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
         return '👋'
       case 'member_removed':
         return '🚫'
+      case 'invite_code_regenerated':
+        return '🔄'
       case 'user_added':
         return '➕'
       case 'user_removed':
@@ -82,6 +84,7 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
       case 'settings_updated':
       case 'data_imported':
       case 'users_imported':
+      case 'invite_code_regenerated':
         return 'text-blue-500'
       default:
         return 'text-muted-foreground'

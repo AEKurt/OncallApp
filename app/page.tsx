@@ -29,6 +29,7 @@ export default function Home() {
     teamMembers,
     teamName,
     createdBy,
+    inviteCode,
     loading: teamLoading,
     updateTeamUsers,
     updateTeamSchedule,
@@ -490,6 +491,7 @@ export default function Home() {
           members={teamMembers}
           currentUserId={user.uid}
           createdBy={createdBy}
+          inviteCode={inviteCode}
           onLeaveTeam={handleLeaveTeam}
           onDeleteTeam={handleDeleteTeam}
         />

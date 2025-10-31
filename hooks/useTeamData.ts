@@ -14,6 +14,7 @@ export function useTeamData(teamId: string | null) {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [teamName, setTeamName] = useState<string>('')
   const [createdBy, setCreatedBy] = useState<string>('')
+  const [inviteCode, setInviteCode] = useState<string>('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -29,16 +30,17 @@ export function useTeamData(teamId: string | null) {
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() as DocumentData
-          setUsers(data.users || [])
-          setSchedule(data.schedule || {})
-          setNotes(data.notes || {})
-          setSettings(data.settings || null)
-          setTeamMembers(data.teamMembers || [])
-          setTeamName(data.name || '')
-          setCreatedBy(data.createdBy || '')
-        }
-        setLoading(false)
-      },
+        setUsers(data.users || [])
+        setSchedule(data.schedule || {})
+        setNotes(data.notes || {})
+        setSettings(data.settings || null)
+        setTeamMembers(data.teamMembers || [])
+        setTeamName(data.name || '')
+        setCreatedBy(data.createdBy || '')
+        setInviteCode(data.inviteCode || '')
+      }
+      setLoading(false)
+    },
       (error) => {
         console.error('Error fetching team data:', error)
         setLoading(false)
@@ -80,6 +82,7 @@ export function useTeamData(teamId: string | null) {
     teamMembers,
     teamName,
     createdBy,
+    inviteCode,
     loading,
     updateTeamUsers,
     updateTeamSchedule,
@@ -88,9 +91,20 @@ export function useTeamData(teamId: string | null) {
   }
 }
 
+// Generate a random invite code
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // Removed ambiguous characters
+  let code = ''
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return code
+}
+
 // Create a new team
 export async function createTeam(userId: string, teamName: string, userEmail: string, userName: string, userPhoto?: string): Promise<string> {
   const teamId = `team_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const inviteCode = generateInviteCode()
   const teamRef = doc(db, 'teams', teamId)
 
   const adminMember: TeamMember = {
@@ -106,6 +120,7 @@ export async function createTeam(userId: string, teamName: string, userEmail: st
     name: teamName,
     createdBy: userId,
     createdAt: new Date().toISOString(),
+    inviteCode: inviteCode,
     members: [userId],
     teamMembers: [adminMember],
     users: [],
@@ -124,7 +139,87 @@ export async function createTeam(userId: string, teamName: string, userEmail: st
   return teamId
 }
 
-// Join an existing team
+// Join an existing team by invite code
+export async function joinTeamByInviteCode(inviteCode: string, userId: string, userEmail: string, userName: string, userPhoto?: string): Promise<string | null> {
+  try {
+    console.log('🔍 Attempting to join team with invite code:', inviteCode)
+    console.log('🔍 User ID:', userId)
+    
+    // Find team by invite code
+    const teamsRef = collection(db, 'teams')
+    const q = query(teamsRef, where('inviteCode', '==', inviteCode.toUpperCase().trim()))
+    const querySnapshot = await getDocs(q)
+    
+    if (querySnapshot.empty) {
+      console.error('❌ No team found with this invite code')
+      throw new Error('Invalid invite code. Please check and try again.')
+    }
+
+    const teamDoc = querySnapshot.docs[0]
+    const teamId = teamDoc.id
+    const teamData = teamDoc.data()
+    
+    console.log('✅ Team found:', teamData.name)
+    console.log('✅ Team ID:', teamId)
+    
+    // Check if user is already a member
+    if (teamData.members?.includes(userId)) {
+      console.log('✅ User already a member')
+      return teamId
+    }
+
+    // Color palette for new users
+    const colors = [
+      '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
+      '#06b6d4', '#f97316', '#84cc16', '#6366f1', '#14b8a6',
+    ]
+
+    // Create user entry
+    const currentUsers = teamData.users || []
+    const userColor = colors[currentUsers.length % colors.length]
+    const newUser = {
+      id: userId,
+      name: userName,
+      totalWeight: 0,
+      color: userColor,
+    }
+
+    // Create team member entry
+    const newMember: TeamMember = {
+      uid: userId,
+      email: userEmail,
+      displayName: userName,
+      photoURL: userPhoto,
+      role: 'member',
+      joinedAt: new Date().toISOString(),
+    }
+
+    // Update team
+    const teamRef = doc(db, 'teams', teamId)
+    await updateDoc(teamRef, {
+      members: [...(teamData.members || []), userId],
+      teamMembers: [...(teamData.teamMembers || []), newMember],
+      users: [...currentUsers, newUser],
+    })
+
+    console.log('✅ Member added successfully')
+    console.log('✅ User added to schedule list automatically')
+
+    // Log activity
+    try {
+      await logActivity(teamId, userId, userName, 'member_joined', `${userName} joined the team`)
+    } catch (activityError) {
+      console.warn('⚠️ Could not log activity, but join was successful')
+    }
+
+    return teamId
+  } catch (error: any) {
+    console.error('❌ Error joining team:', error)
+    throw error
+  }
+}
+
+// Join an existing team (legacy - by team ID, kept for backward compatibility)
 export async function joinTeam(teamId: string, userId: string, userEmail: string, userName: string, userPhoto?: string): Promise<boolean> {
   try {
     console.log('🔍 Attempting to join team:', teamId)
@@ -361,6 +456,47 @@ export async function deleteTeam(teamId: string, userId: string, userName: strin
     return true
   } catch (error) {
     console.error('Error deleting team:', error)
+    throw error
+  }
+}
+
+// Regenerate invite code (admin only)
+export async function regenerateInviteCode(teamId: string, userId: string, userName: string): Promise<string> {
+  try {
+    const teamRef = doc(db, 'teams', teamId)
+    const teamSnapshot = await getDoc(teamRef)
+    
+    if (!teamSnapshot.exists()) {
+      throw new Error('Team not found.')
+    }
+
+    const teamData = teamSnapshot.data()
+    
+    // Check if current user is admin
+    const currentUserMember = teamData.teamMembers?.find((m: TeamMember) => m.uid === userId)
+    if (!currentUserMember || currentUserMember.role !== 'admin') {
+      throw new Error('Only admins can regenerate the invite code.')
+    }
+
+    // Generate new invite code
+    const newInviteCode = generateInviteCode()
+    
+    await updateDoc(teamRef, {
+      inviteCode: newInviteCode,
+    })
+
+    // Log activity
+    await logActivity(
+      teamId, 
+      userId, 
+      userName, 
+      'invite_code_regenerated', 
+      `${userName} regenerated the team invite code`
+    )
+
+    return newInviteCode
+  } catch (error) {
+    console.error('Error regenerating invite code:', error)
     throw error
   }
 }

@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { TeamMember } from '@/types'
-import { Users, Crown, Copy, Check, LogOut, Trash2, UserX } from 'lucide-react'
+import { Users, Crown, Copy, Check, LogOut, Trash2, UserX, RefreshCw } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { leaveTeam, deleteTeam, removeMemberFromTeam } from '@/hooks/useTeamData'
+import { leaveTeam, deleteTeam, removeMemberFromTeam, regenerateInviteCode } from '@/hooks/useTeamData'
 
 interface TeamMembersProps {
   teamId: string
@@ -12,19 +12,21 @@ interface TeamMembersProps {
   members: TeamMember[]
   currentUserId: string
   createdBy: string
+  inviteCode: string
   onLeaveTeam: () => void
   onDeleteTeam: () => void
 }
 
-export function TeamMembers({ teamId, teamName, members, currentUserId, createdBy, onLeaveTeam, onDeleteTeam }: TeamMembersProps) {
+export function TeamMembers({ teamId, teamName, members, currentUserId, createdBy, inviteCode, onLeaveTeam, onDeleteTeam }: TeamMembersProps) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
 
-  const copyTeamId = () => {
-    navigator.clipboard.writeText(teamId)
+  const copyInviteCode = () => {
+    navigator.clipboard.writeText(inviteCode)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -113,6 +115,27 @@ export function TeamMembers({ teamId, teamName, members, currentUserId, createdB
     }
   }
 
+  const handleRegenerateInviteCode = async () => {
+    const confirm = window.confirm(
+      '⚠️ Regenerate Invite Code?\n\n' +
+      'This will invalidate the old invite code.\n' +
+      'Anyone with the old code will no longer be able to join.\n\n' +
+      'Do you want to continue?'
+    )
+
+    if (!confirm) return
+
+    setRegenerating(true)
+    try {
+      await regenerateInviteCode(teamId, currentUserId, currentUser?.displayName || 'Unknown')
+      alert('✅ Invite code regenerated successfully!')
+    } catch (error: any) {
+      alert(error.message || 'Failed to regenerate invite code')
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -134,25 +157,40 @@ export function TeamMembers({ teamId, teamName, members, currentUserId, createdB
           {/* Team Info */}
           <div className="bg-gradient-to-r from-cyber-purple/10 to-cyber-pink/10 rounded-xl p-4 border-2 border-cyber-purple/30">
             <h3 className="font-bold text-lg text-foreground mb-2">{teamName}</h3>
-            <div className="flex items-center gap-2">
-              <code className="text-xs bg-card px-3 py-1.5 rounded border border-border font-mono text-muted-foreground flex-1">
-                {teamId}
-              </code>
-              <button
-                onClick={copyTeamId}
-                className="p-2 bg-card hover:bg-muted rounded-lg border border-border transition-all"
-                title="Copy Team ID"
-              >
-                {copied ? (
-                  <Check className="w-4 h-4 text-green-500" />
-                ) : (
-                  <Copy className="w-4 h-4 text-muted-foreground" />
+            
+            {/* Invite Code */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground">Invite Code</label>
+              <div className="flex items-center gap-2">
+                <code className="text-2xl bg-card px-4 py-2 rounded border border-border font-mono text-foreground flex-1 tracking-widest text-center">
+                  {inviteCode}
+                </code>
+                <button
+                  onClick={copyInviteCode}
+                  className="p-2 bg-card hover:bg-muted rounded-lg border border-border transition-all"
+                  title="Copy Invite Code"
+                >
+                  {copied ? (
+                    <Check className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Copy className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </button>
+                {currentUserRole === 'admin' && (
+                  <button
+                    onClick={handleRegenerateInviteCode}
+                    disabled={regenerating}
+                    className="p-2 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg border border-amber-500/50 hover:border-amber-500 transition-all disabled:opacity-50"
+                    title="Regenerate Invite Code"
+                  >
+                    <RefreshCw className={`w-4 h-4 text-amber-500 ${regenerating ? 'animate-spin' : ''}`} />
+                  </button>
                 )}
-              </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Share this invite code with others to invite them to the team!
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Share this Team ID with others to invite them!
-            </p>
           </div>
 
           {/* Members List */}

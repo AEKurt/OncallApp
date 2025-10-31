@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { createTeam, joinTeam, getUserTeams } from '@/hooks/useTeamData'
+import { createTeam, joinTeamByInviteCode, getUserTeams } from '@/hooks/useTeamData'
 import { Users, Plus, LogOut, UserPlus, RefreshCw } from 'lucide-react'
 
 interface TeamSelectionProps {
@@ -12,7 +12,7 @@ interface TeamSelectionProps {
 export function TeamSelection({ onTeamSelected }: TeamSelectionProps) {
   const { user, signOut } = useAuth()
   const [teamName, setTeamName] = useState('')
-  const [teamIdToJoin, setTeamIdToJoin] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [creating, setCreating] = useState(false)
   const [joining, setJoining] = useState(false)
   const [existingTeams, setExistingTeams] = useState<Array<{ id: string; name: string; role: string }>>([])
@@ -54,28 +54,28 @@ export function TeamSelection({ onTeamSelected }: TeamSelectionProps) {
   }
 
   const handleJoinTeam = async () => {
-    if (!teamIdToJoin.trim() || !user) return
+    if (!inviteCode.trim() || !user) return
 
     console.log('🔍 Join Team clicked')
-    console.log('🔍 Team ID input:', teamIdToJoin.trim())
+    console.log('🔍 Invite Code input:', inviteCode.trim())
     console.log('🔍 User:', user.displayName, user.uid)
 
     setJoining(true)
     try {
-      const success = await joinTeam(
-        teamIdToJoin.trim(),
+      const teamId = await joinTeamByInviteCode(
+        inviteCode.trim(),
         user.uid,
         user.email || '',
         user.displayName || 'Unknown User',
         user.photoURL || undefined
       )
       
-      if (success) {
+      if (teamId) {
         console.log('✅ Join successful, redirecting...')
-        onTeamSelected(teamIdToJoin.trim())
+        onTeamSelected(teamId)
       } else {
-        console.error('❌ Join returned false')
-        alert('Team not found. Please check the Team ID.')
+        console.error('❌ Join returned null')
+        alert('Invalid invite code. Please check and try again.')
       }
     } catch (error: any) {
       console.error('❌ Join team error:', error)
@@ -211,28 +211,32 @@ export function TeamSelection({ onTeamSelected }: TeamSelectionProps) {
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-foreground">Join Team</h2>
-                <p className="text-sm text-muted-foreground">Enter team ID</p>
+                <p className="text-sm text-muted-foreground">Enter invite code</p>
               </div>
             </div>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Team ID
+                  Invite Code
                 </label>
                 <input
                   type="text"
-                  value={teamIdToJoin}
-                  onChange={(e) => setTeamIdToJoin(e.target.value)}
-                  placeholder="team_xxxxxxxxxxxxx"
-                  className="w-full px-4 py-3 border-2 border-border bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-purple focus:border-transparent text-foreground placeholder:text-muted-foreground transition-all font-mono text-sm"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  placeholder="A3K7YW2P"
+                  maxLength={8}
+                  className="w-full px-4 py-3 border-2 border-border bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-cyber-purple focus:border-transparent text-foreground placeholder:text-muted-foreground transition-all font-mono text-2xl text-center tracking-widest uppercase"
                   onKeyPress={(e) => e.key === 'Enter' && handleJoinTeam()}
                 />
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Get the invite code from your team admin
+                </p>
               </div>
 
               <button
                 onClick={handleJoinTeam}
-                disabled={!teamIdToJoin.trim() || joining}
+                disabled={!inviteCode.trim() || inviteCode.length !== 8 || joining}
                 className="w-full py-4 bg-gradient-to-r from-cyber-purple to-cyber-pink text-white rounded-lg hover:shadow-[0_0_30px_rgba(131,56,236,0.6)] transition-all font-bold text-lg inline-flex items-center justify-center gap-3 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-cyber-pink to-cyber-purple opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
