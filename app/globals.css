@@ -25,17 +25,54 @@
     --ring: 217 91% 60%;
     --radius: 0.75rem;
   }
+
+  .light {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 100% 95%;
+    --secondary: 271 91% 65%;
+    --secondary-foreground: 210 100% 95%;
+    --muted: 217 20% 95%;
+    --muted-foreground: 217 20% 40%;
+    --accent: 184 100% 50%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 340 100% 50%;
+    --destructive-foreground: 210 100% 95%;
+    --border: 217 20% 90%;
+    --input: 217 20% 90%;
+    --ring: 217 91% 60%;
+  }
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+  
+  html {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
       'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
       sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  /* Smooth transitions for theme switching */
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: ease;
+    transition-duration: 0.3s;
   }
 }
 

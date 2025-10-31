@@ -9,6 +9,7 @@ import { LoginPage } from '@/components/LoginPage'
 import { TeamSelection } from '@/components/TeamSelection'
 import { TeamMembers } from '@/components/TeamMembers'
 import { ActivityLogComponent } from '@/components/ActivityLog'
+import { ThemeToggleCompact } from '@/components/ThemeToggle'
 import { generateSchedule, DEFAULT_WEIGHTS } from '@/lib/scheduler'
 import { User, Schedule, DayNotes } from '@/types'
 import { Users, Calendar as CalendarIcon, Zap, LogOut, RefreshCw } from 'lucide-react'
@@ -394,13 +395,16 @@ export default function Home() {
                 </button>
               </div>
               {/* Sign Out */}
-              <button
-                onClick={handleSignOut}
-                className="px-3 py-1.5 text-xs bg-card/80 backdrop-blur-sm border border-border rounded-lg hover:bg-card transition-all inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground flex-shrink-0"
-              >
-                <LogOut className="w-3 h-3" />
-                <span className="hidden sm:inline">Sign Out</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <ThemeToggleCompact />
+                <button
+                  onClick={handleSignOut}
+                  className="px-3 py-1.5 text-xs bg-card/80 backdrop-blur-sm border border-border rounded-lg hover:bg-card transition-all inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground flex-shrink-0"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span className="hidden sm:inline">Sign Out</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
