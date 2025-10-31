@@ -42,7 +42,7 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
-          className="fixed bottom-6 right-6 p-4 bg-gradient-to-r from-cyber-blue to-cyber-purple rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(58,134,255,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
+          className="fixed bottom-24 right-6 p-4 bg-gradient-to-r from-cyber-blue to-cyber-purple rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(58,134,255,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
           title="Ayarlar"
         >
           <SettingsIcon className="w-6 h-6 text-white group-hover:rotate-90 transition-transform duration-300" />

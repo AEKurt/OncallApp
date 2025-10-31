@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Calendar } from '@/components/Calendar'
 import { UserManagement } from '@/components/UserManagement'
 import { Statistics } from '@/components/Statistics'
-import { DataManagement } from '@/components/DataManagement'
 import { Settings, WeightSettings as WeightSettingsType } from '@/components/Settings'
 import { LoginPage } from '@/components/LoginPage'
 import { TeamSelection } from '@/components/TeamSelection'
@@ -59,10 +58,7 @@ export default function Home() {
   }, [user])
 
   const addUser = (name: string) => {
-    if (!isAdmin) {
-      alert('⚠️ Only admins can add users')
-      return
-    }
+    // All team members can add users (not just admins)
     
     // Color palette for users
     const colors = [
@@ -95,10 +91,61 @@ export default function Home() {
     }
   }
 
+  const syncTeamMembersToUsers = () => {
+    // All team members can sync (not just admins)
+    // Color palette for users
+    const colors = [
+      '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
+      '#06b6d4', '#f97316', '#84cc16', '#6366f1', '#14b8a6',
+    ]
+
+    const newUsers = [...users]
+    let addedCount = 0
+
+    teamMembers.forEach((member, index) => {
+      // Check if member is already in user list (by uid or name)
+      const existingUser = users.find(u => 
+        u.id === member.uid || 
+        u.name === member.displayName ||
+        u.name === member.email
+      )
+
+      if (!existingUser) {
+        const userColor = colors[(users.length + addedCount) % colors.length]
+        newUsers.push({
+          id: member.uid,
+          name: member.displayName,
+          totalWeight: 0,
+          color: userColor,
+        })
+        addedCount++
+      }
+    })
+
+    if (addedCount > 0) {
+      updateTeamUsers(newUsers)
+      alert(`✅ ${addedCount} team member(s) added to user list!`)
+      
+      // Log activity
+      if (selectedTeamId && user) {
+        logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'users_synced', `Synced ${addedCount} team members to user list`)
+      }
+    } else {
+      alert('ℹ️ All team members are already in the user list')
+    }
+  }
+
   const removeUser = (id: string) => {
-    if (!isAdmin) {
-      alert('⚠️ Only admins can remove users')
-      return
+    // All team members can remove users (not just admins)
+    
+    // Check if this user is a team member
+    const isTeamMember = teamMembers.some(m => m.uid === id)
+    
+    if (isTeamMember) {
+      const confirmMsg = '⚠️ This user is a team member!\n\nRemoving them from the user list will NOT remove them from the team.\nThey can still access the schedule.\n\nDo you want to continue?'
+      if (!confirm(confirmMsg)) {
+        return
+      }
     }
     
     const removedUser = users.find(u => u.id === id)
@@ -154,28 +201,8 @@ export default function Home() {
     }
   }
 
-  const importAll = (data: { users: User[], schedule: Schedule, notes?: DayNotes }) => {
-    if (!isAdmin) {
-      alert('⚠️ Only admins can import data')
-      return
-    }
-    
-    updateTeamUsers(data.users)
-    updateTeamSchedule(data.schedule)
-    updateTeamNotes(data.notes || {})
-    
-    // Log activity
-    if (selectedTeamId && user) {
-      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'data_imported', `Imported complete data set`)
-    }
-  }
-
   const handleGenerateSchedule = () => {
-    if (!isAdmin) {
-      alert('⚠️ Only admins can generate schedules')
-      return
-    }
-    
+    // All team members can generate schedules
     if (users.length === 0) {
       alert('Please add users first!')
       return
@@ -190,11 +217,7 @@ export default function Home() {
   }
 
   const handleResetSchedule = () => {
-    if (!isAdmin) {
-      alert('⚠️ Only admins can reset schedules')
-      return
-    }
-    
+    // All team members can reset schedules
     if (confirm('Reset schedule and notes? This will affect all team members!')) {
       updateTeamSchedule({})
       updateTeamNotes({})
@@ -207,11 +230,7 @@ export default function Home() {
   }
 
   const handleAssignUser = (date: string, userId: string | null) => {
-    if (!isAdmin) {
-      alert('⚠️ Only admins can assign users')
-      return
-    }
-    
+    // All team members can assign users to schedule
     const newSchedule = { ...schedule }
     if (userId === null) {
       delete newSchedule[date]
@@ -325,7 +344,7 @@ export default function Home() {
                 <img 
                   src="/logo.svg" 
                   alt="PICUS Logo" 
-                  className="h-7 md:h-9 relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
+                  className="h-5 md:h-7 relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
                 />
               </div>
               {/* User Info */}
@@ -444,6 +463,8 @@ export default function Home() {
                 onRemoveUser={removeUser}
                 onClearAll={clearAllUsers}
                 onImportUsers={importUsers}
+                onSyncTeamMembers={syncTeamMembersToUsers}
+                teamMembersCount={teamMembers.length}
               />
             </div>
           )}
@@ -459,14 +480,6 @@ export default function Home() {
         schedule={schedule} 
         currentDate={currentDate}
         settings={weightSettings}
-      />
-      
-      {/* Data Management Button (Floating) */}
-      <DataManagement 
-        users={users} 
-        schedule={schedule} 
-        notes={notes}
-        onImportAll={importAll} 
       />
       
       {/* Team Members Button (Floating) */}

@@ -10,9 +10,11 @@ interface UserManagementProps {
   onRemoveUser: (id: string) => void
   onClearAll: () => void
   onImportUsers: (users: User[]) => void
+  onSyncTeamMembers?: () => void
+  teamMembersCount?: number
 }
 
-export function UserManagement({ users, onAddUser, onRemoveUser, onClearAll, onImportUsers }: UserManagementProps) {
+export function UserManagement({ users, onAddUser, onRemoveUser, onClearAll, onImportUsers, onSyncTeamMembers, teamMembersCount }: UserManagementProps) {
   const [newUserName, setNewUserName] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -104,6 +106,17 @@ export function UserManagement({ users, onAddUser, onRemoveUser, onClearAll, onI
           Ekle
         </button>
       </form>
+
+      {/* Sync Team Members Button */}
+      {onSyncTeamMembers && teamMembersCount && teamMembersCount > 0 && (
+        <button
+          onClick={onSyncTeamMembers}
+          className="w-full px-4 py-3 bg-gradient-to-r from-cyber-purple to-cyber-pink border-2 border-cyber-purple/50 text-white rounded-lg hover:shadow-[0_0_20px_rgba(131,56,236,0.5)] transition-all font-bold inline-flex items-center justify-center gap-2"
+        >
+          <Sparkles className="w-5 h-5" />
+          Sync Team Members ({teamMembersCount})
+        </button>
+      )}
 
       {/* Import/Export/Clear Buttons */}
       {users.length > 0 && (

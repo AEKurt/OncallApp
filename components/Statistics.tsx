@@ -36,7 +36,8 @@ export function Statistics({ users, schedule, currentDate, settings = DEFAULT_WE
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
-          className="fixed bottom-24 right-6 p-4 bg-gradient-to-r from-cyber-cyan to-cyber-blue rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(6,255,240,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
+          className="fixed right-6 p-4 bg-gradient-to-r from-cyber-cyan to-cyber-blue rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(6,255,240,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
+          style={{ bottom: '10.5rem' }}
           title="İstatistikler ve Yük Dağılımı"
         >
           <BarChart3 className="w-6 h-6 text-white group-hover:scale-110 transition-transform duration-300" />

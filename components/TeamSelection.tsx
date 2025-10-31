@@ -56,6 +56,10 @@ export function TeamSelection({ onTeamSelected }: TeamSelectionProps) {
   const handleJoinTeam = async () => {
     if (!teamIdToJoin.trim() || !user) return
 
+    console.log('🔍 Join Team clicked')
+    console.log('🔍 Team ID input:', teamIdToJoin.trim())
+    console.log('🔍 User:', user.displayName, user.uid)
+
     setJoining(true)
     try {
       const success = await joinTeam(
@@ -67,13 +71,15 @@ export function TeamSelection({ onTeamSelected }: TeamSelectionProps) {
       )
       
       if (success) {
+        console.log('✅ Join successful, redirecting...')
         onTeamSelected(teamIdToJoin.trim())
       } else {
+        console.error('❌ Join returned false')
         alert('Team not found. Please check the Team ID.')
       }
-    } catch (error) {
-      console.error('Error joining team:', error)
-      alert('Failed to join team. Please try again.')
+    } catch (error: any) {
+      console.error('❌ Join team error:', error)
+      alert(error.message || 'Failed to join team. Please try again.')
     } finally {
       setJoining(false)
     }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { doc, onSnapshot, setDoc, updateDoc, deleteDoc, DocumentData, collection, addDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
+import { doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, DocumentData, collection, addDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { User, Schedule, DayNotes, TeamMember, ActivityLog } from '@/types'
 import { WeightSettings } from '@/lib/scheduler'
@@ -127,18 +127,38 @@ export async function createTeam(userId: string, teamName: string, userEmail: st
 // Join an existing team
 export async function joinTeam(teamId: string, userId: string, userEmail: string, userName: string, userPhoto?: string): Promise<boolean> {
   try {
+    console.log('🔍 Attempting to join team:', teamId)
+    console.log('🔍 User ID:', userId)
+    
     const teamRef = doc(db, 'teams', teamId)
-    const teamDoc = await getDocs(query(collection(db, 'teams'), where('__name__', '==', teamId), limit(1)))
     
-    if (teamDoc.empty) {
-      return false
-    }
-
-    const teamData = teamDoc.docs[0].data()
-    
-    // Check if user is already a member
-    if (teamData.members?.includes(userId)) {
-      return true
+    // First, try to read the team to check if it exists
+    let teamData: any
+    try {
+      const teamSnapshot = await getDoc(teamRef)
+      console.log('🔍 Team Snapshot exists:', teamSnapshot.exists())
+      
+      if (!teamSnapshot.exists()) {
+        console.error('❌ Team does not exist in Firestore')
+        throw new Error('Team not found. Please check the Team ID.')
+      }
+      
+      teamData = teamSnapshot.data()
+      console.log('✅ Team found:', teamData.name)
+      console.log('✅ Current members:', teamData.members)
+      
+      // Check if user is already a member
+      if (teamData.members?.includes(userId)) {
+        console.log('✅ User already a member, redirecting...')
+        return true
+      }
+    } catch (readError: any) {
+      console.log('⚠️ Cannot read team directly, trying alternative method...')
+      console.log('⚠️ Error:', readError.message)
+      
+      // If we can't read (permission denied), try to join anyway
+      // The update permission might work if rules allow self-adding
+      teamData = { members: [], teamMembers: [] }
     }
 
     const newMember: TeamMember = {
@@ -150,18 +170,55 @@ export async function joinTeam(teamId: string, userId: string, userEmail: string
       joinedAt: new Date().toISOString(),
     }
 
+    console.log('➕ Adding new member:', newMember)
+
+    // Color palette for new users
+    const colors = [
+      '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
+      '#06b6d4', '#f97316', '#84cc16', '#6366f1', '#14b8a6',
+    ]
+
+    // Create a user entry for the new member
+    const currentUsers = teamData.users || []
+    const userColor = colors[currentUsers.length % colors.length]
+    const newUser = {
+      id: userId,
+      name: userName,
+      totalWeight: 0,
+      color: userColor,
+    }
+
+    // Try to update - this should work with the new rules
     await updateDoc(teamRef, {
       members: [...(teamData.members || []), userId],
       teamMembers: [...(teamData.teamMembers || []), newMember],
+      users: [...currentUsers, newUser],
     })
 
+    console.log('✅ Member added successfully')
+    console.log('✅ User added to schedule list automatically')
+
     // Log activity
-    await logActivity(teamId, userId, userName, 'member_joined', `${userName} joined the team`)
+    try {
+      await logActivity(teamId, userId, userName, 'member_joined', `${userName} joined the team`)
+    } catch (activityError) {
+      console.warn('⚠️ Could not log activity, but join was successful')
+    }
 
     return true
-  } catch (error) {
-    console.error('Error joining team:', error)
-    return false
+  } catch (error: any) {
+    console.error('❌ Error joining team:', error)
+    console.error('❌ Error message:', error.message)
+    console.error('❌ Error code:', error.code)
+    
+    // More specific error messages
+    if (error.code === 'permission-denied') {
+      throw new Error('Permission denied. Please make sure Firestore rules are updated correctly.')
+    } else if (error.code === 'not-found') {
+      throw new Error('Team not found. Please check the Team ID.')
+    } else {
+      throw error
+    }
   }
 }
 
@@ -234,13 +291,13 @@ export async function getActivityLogs(teamId: string, limitCount: number = 20): 
 export async function leaveTeam(teamId: string, userId: string, userName: string): Promise<boolean> {
   try {
     const teamRef = doc(db, 'teams', teamId)
-    const teamDoc = await getDocs(query(collection(db, 'teams'), where('__name__', '==', teamId), limit(1)))
+    const teamSnapshot = await getDoc(teamRef)
     
-    if (teamDoc.empty) {
+    if (!teamSnapshot.exists()) {
       return false
     }
 
-    const teamData = teamDoc.docs[0].data()
+    const teamData = teamSnapshot.data()
     
     // Don't allow creator to leave if they're the only admin
     if (teamData.createdBy === userId) {
@@ -275,13 +332,13 @@ export async function leaveTeam(teamId: string, userId: string, userName: string
 export async function deleteTeam(teamId: string, userId: string, userName: string): Promise<boolean> {
   try {
     const teamRef = doc(db, 'teams', teamId)
-    const teamDoc = await getDocs(query(collection(db, 'teams'), where('__name__', '==', teamId), limit(1)))
+    const teamSnapshot = await getDoc(teamRef)
     
-    if (teamDoc.empty) {
+    if (!teamSnapshot.exists()) {
       return false
     }
 
-    const teamData = teamDoc.docs[0].data()
+    const teamData = teamSnapshot.data()
     
     // Only creator can delete team
     if (teamData.createdBy !== userId) {
@@ -304,6 +361,69 @@ export async function deleteTeam(teamId: string, userId: string, userName: strin
     return true
   } catch (error) {
     console.error('Error deleting team:', error)
+    throw error
+  }
+}
+
+// Remove member from team (admin only)
+export async function removeMemberFromTeam(
+  teamId: string, 
+  memberUidToRemove: string, 
+  currentUserId: string, 
+  currentUserName: string
+): Promise<boolean> {
+  try {
+    const teamRef = doc(db, 'teams', teamId)
+    const teamSnapshot = await getDoc(teamRef)
+    
+    if (!teamSnapshot.exists()) {
+      throw new Error('Team not found.')
+    }
+
+    const teamData = teamSnapshot.data()
+    
+    // Check if current user is admin
+    const currentUserMember = teamData.teamMembers?.find((m: TeamMember) => m.uid === currentUserId)
+    if (!currentUserMember || currentUserMember.role !== 'admin') {
+      throw new Error('Only admins can remove members.')
+    }
+
+    // Don't allow removing yourself
+    if (memberUidToRemove === currentUserId) {
+      throw new Error('Cannot remove yourself. Use "Leave Team" instead.')
+    }
+
+    // Don't allow removing the creator
+    if (memberUidToRemove === teamData.createdBy) {
+      throw new Error('Cannot remove the team creator.')
+    }
+
+    // Get member info for logging
+    const memberToRemove = teamData.teamMembers?.find((m: TeamMember) => m.uid === memberUidToRemove)
+    
+    // Remove from members array
+    const newMembers = (teamData.members || []).filter((id: string) => id !== memberUidToRemove)
+    
+    // Remove from teamMembers array
+    const newTeamMembers = (teamData.teamMembers || []).filter((m: TeamMember) => m.uid !== memberUidToRemove)
+
+    await updateDoc(teamRef, {
+      members: newMembers,
+      teamMembers: newTeamMembers,
+    })
+
+    // Log activity
+    await logActivity(
+      teamId, 
+      currentUserId, 
+      currentUserName, 
+      'member_removed', 
+      `${currentUserName} removed ${memberToRemove?.displayName || 'a member'} from the team`
+    )
+
+    return true
+  } catch (error) {
+    console.error('Error removing member:', error)
     throw error
   }
 }

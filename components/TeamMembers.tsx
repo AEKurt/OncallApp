@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { TeamMember } from '@/types'
-import { Users, Crown, Copy, Check, LogOut, Trash2 } from 'lucide-react'
+import { Users, Crown, Copy, Check, LogOut, Trash2, UserX } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { leaveTeam, deleteTeam } from '@/hooks/useTeamData'
+import { leaveTeam, deleteTeam, removeMemberFromTeam } from '@/hooks/useTeamData'
 
 interface TeamMembersProps {
   teamId: string
@@ -21,6 +21,7 @@ export function TeamMembers({ teamId, teamName, members, currentUserId, createdB
   const [copied, setCopied] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null)
 
   const copyTeamId = () => {
     navigator.clipboard.writeText(teamId)
@@ -91,11 +92,32 @@ export function TeamMembers({ teamId, teamName, members, currentUserId, createdB
     }
   }
 
+  const handleRemoveMember = async (memberUid: string) => {
+    const memberToRemove = members.find(m => m.uid === memberUid)
+    
+    if (!memberToRemove) return
+
+    const confirmRemove = confirm(
+      `Remove ${memberToRemove.displayName || memberToRemove.email} from the team?\n\nThey will lose access to all team data.`
+    )
+
+    if (!confirmRemove) return
+
+    setRemovingMemberId(memberUid)
+    try {
+      await removeMemberFromTeam(teamId, memberUid, currentUserId, currentUser?.displayName || 'Unknown')
+    } catch (error: any) {
+      alert(error.message || 'Failed to remove member')
+    } finally {
+      setRemovingMemberId(null)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
-          className="fixed bottom-6 left-6 p-4 bg-gradient-to-r from-cyber-purple to-cyber-pink rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(131,56,236,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
+          className="fixed bottom-6 right-6 p-4 bg-gradient-to-r from-cyber-purple to-cyber-pink rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(131,56,236,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
           title="Team Members"
         >
           <Users className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
@@ -198,6 +220,24 @@ export function TeamMembers({ teamId, teamName, members, currentUserId, createdB
                       </span>
                     </div>
                   </div>
+
+                  {/* Remove Button (Admin only, not for self or creator) */}
+                  {currentUserRole === 'admin' && 
+                   member.uid !== currentUserId && 
+                   member.uid !== createdBy && (
+                    <button
+                      onClick={() => handleRemoveMember(member.uid)}
+                      disabled={removingMemberId === member.uid}
+                      className="p-2 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/50 hover:border-red-500 text-red-500 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Remove member from team"
+                    >
+                      {removingMemberId === member.uid ? (
+                        <span className="text-xs">...</span>
+                      ) : (
+                        <UserX className="w-5 h-5" />
+                      )}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -211,6 +251,7 @@ export function TeamMembers({ teamId, teamName, members, currentUserId, createdB
                 <>
                   <li>✅ Create and modify schedules</li>
                   <li>✅ Add/remove users</li>
+                  <li>✅ Remove team members</li>
                   <li>✅ Manage team settings</li>
                   <li>✅ View all team members</li>
                 </>
@@ -220,6 +261,7 @@ export function TeamMembers({ teamId, teamName, members, currentUserId, createdB
                   <li>👀 View team members</li>
                   <li>❌ Cannot modify schedules</li>
                   <li>❌ Cannot manage settings</li>
+                  <li>❌ Cannot remove members</li>
                 </>
               )}
             </ul>

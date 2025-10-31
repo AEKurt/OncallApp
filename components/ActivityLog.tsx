@@ -39,10 +39,14 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
         return '👋'
       case 'member_left':
         return '👋'
+      case 'member_removed':
+        return '🚫'
       case 'user_added':
         return '➕'
       case 'user_removed':
         return '➖'
+      case 'users_synced':
+        return '🔄'
       case 'schedule_generated':
         return '🤖'
       case 'schedule_reset':
@@ -65,10 +69,12 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
       case 'team_created':
       case 'member_joined':
       case 'user_added':
+      case 'users_synced':
       case 'schedule_generated':
         return 'text-green-500'
       case 'team_deleted':
       case 'member_left':
+      case 'member_removed':
       case 'user_removed':
       case 'schedule_reset':
       case 'data_cleared':
@@ -86,7 +92,8 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
-          className="fixed bottom-6 left-72 p-4 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(6,182,212,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
+          className="fixed right-6 p-4 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full shadow-lg hover:shadow-[0_0_30px_rgba(6,182,212,0.6)] transition-all duration-300 group z-50 animate-glow-pulse"
+          style={{ bottom: '15rem' }}
           title="Activity Log"
         >
           <Activity className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />

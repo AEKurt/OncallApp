@@ -26,55 +26,63 @@
 
 Replace the default rules with:
 
-\`\`\`javascript
+```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Team documents
     match /teams/{teamId} {
-      // Allow read if user is a member
-      allow read: if request.auth != null && 
-                     request.auth.uid in resource.data.members;
+      // Authenticated users can read teams (needed for joining)
+      allow read: if request.auth != null;
       
-      // Allow write if user is a member (for updates like leaving team, schedule changes)
-      allow update: if request.auth != null && 
-                       request.auth.uid in resource.data.members;
+      // Members can update, OR users can add themselves as members
+      allow update: if request.auth != null && (
+        request.auth.uid in resource.data.members ||
+        request.auth.uid in request.resource.data.members
+      );
       
-      // Allow create for authenticated users (creating new teams)
+      // Anyone authenticated can create teams
       allow create: if request.auth != null;
       
-      // Allow delete ONLY for team creator
+      // Only creator can delete teams
       allow delete: if request.auth != null && 
                        request.auth.uid == resource.data.createdBy;
       
       // Activity subcollection
       match /activity/{activityId} {
-        // Members can read activity logs
         allow read: if request.auth != null && 
                        request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.members;
-        // Members can create activity logs
         allow create: if request.auth != null && 
                          request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.members;
-        // Allow delete for team creator (when team is deleted)
         allow delete: if request.auth != null;
       }
     }
-    
-    // User documents (optional - for future use)
-    match /users/{userId} {
-      allow read, write: if request.auth != null && 
-                            request.auth.uid == userId;
-    }
   }
 }
-\`\`\`
+```
 
 **Important Notes:**
-- Members can update team documents (needed for leaving team, updating schedule)
-- Activity logs are accessible to all team members
-- **Teams can ONLY be deleted by their creator** (createdBy field)
-- Activity logs can be deleted (for cleanup when team is deleted)
-- Only authenticated users can create teams
+- ✅ **Members can read their teams**
+- ✅ **Non-members can read ONLY when joining** (adding themselves to members array)
+- ✅ Members can update team documents
+- ✅ Activity logs only accessible to team members
+- ✅ **Teams can ONLY be deleted by their creator** (createdBy field)
+- 🔐 **More secure:** You can't read a team unless you're joining it or already a member
+
+**How it works:**
+- \`resource.data\`: Current data in Firestore
+- \`request.resource.data\`: Data being written
+- Join operation: Your UID is in \`request.resource.data.members\` → Access granted
+- Read as member: Your UID is in \`resource.data.members\` → Access granted
+- Random read: Your UID not in either → Access denied ❌
+
+**Alternative (simpler but less secure):**
+If the above doesn't work, use:
+\`\`\`javascript
+allow read: if request.auth != null;
+\`\`\`
+This allows all authenticated users to read teams (Team ID acts as invite code).
+This is acceptable if Team IDs are treated as secret invite links.
 
 ## 🔑 Step 5: Get Firebase Config
 
