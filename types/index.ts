@@ -23,3 +23,35 @@ export interface DayInfo {
   note?: string
 }
 
+export interface TeamMember {
+  uid: string
+  email: string
+  displayName: string
+  photoURL?: string
+  role: 'admin' | 'member'
+  joinedAt: string
+}
+
+export interface Team {
+  id: string
+  name: string
+  createdBy: string
+  createdAt: string
+  members: string[] // UIDs
+  teamMembers: TeamMember[] // Full member info
+  users: User[]
+  schedule: Schedule
+  notes: DayNotes
+  settings: any
+}
+
+export interface ActivityLog {
+  id: string
+  teamId: string
+  userId: string
+  userName: string
+  action: string
+  details: string
+  timestamp: string
+}
+

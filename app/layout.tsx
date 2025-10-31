@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 export const metadata: Metadata = {
-  title: 'On-Call Schedule - Nöbet Çizelgesi',
-  description: 'Adil yük dağılımı ile on-call schedule yönetimi',
+  title: 'On-Call Schedule - Shift Management',
+  description: 'On-call schedule management with fair load distribution',
 }
 
 export default function RootLayout({
@@ -13,7 +14,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="tr">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   )
 }

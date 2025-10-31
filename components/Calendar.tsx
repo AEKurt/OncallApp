@@ -92,7 +92,7 @@ export function Calendar({
             {format(currentDate, 'MMMM yyyy', { locale: tr })}
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Nöbet çizelgesini görüntüleyin ve düzenleyin
+            View and edit on-call schedule
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -101,24 +101,24 @@ export function Calendar({
             onClick={onGenerateSchedule}
             disabled={users.length === 0}
             className="px-4 py-2 bg-gradient-to-r from-cyber-blue via-cyber-purple to-cyber-pink text-white rounded-lg hover:shadow-[0_0_20px_rgba(58,134,255,0.6)] transition-all font-bold text-sm inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
-            title="Otomatik Yerleştir"
+            title="Auto Assign"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-cyber-pink via-cyber-purple to-cyber-blue opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <Wand2 className="w-4 h-4 relative z-10 group-hover:rotate-12 transition-transform" />
-            <span className="relative z-10 hidden lg:inline">Otomatik Yerleştir</span>
+            <span className="relative z-10 hidden lg:inline">Auto Assign</span>
             <Zap className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform hidden lg:inline" />
           </button>
           
           {/* Reset Button */}
           <button
             onClick={() => {
-              if (confirm('Tüm schedule\'ı sıfırlamak istediğinize emin misiniz? Bu işlem geri alınamaz!')) {
+              if (confirm('Are you sure you want to reset the entire schedule? This action cannot be undone!')) {
                 onResetSchedule()
               }
             }}
             disabled={Object.keys(schedule).length === 0}
             className="px-3 py-2 bg-gradient-to-r from-cyber-pink/20 to-destructive/20 border-2 border-cyber-pink/50 text-cyber-pink rounded-lg hover:shadow-[0_0_15px_rgba(255,0,110,0.4)] transition-all font-bold text-sm inline-flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed group"
-            title="Schedule'ı Sıfırla"
+            title="Reset Schedule"
           >
             <RotateCcw className="w-4 h-4 group-hover:rotate-[-360deg] transition-transform duration-500" />
           </button>
@@ -129,14 +129,14 @@ export function Calendar({
           <button
             onClick={prevMonth}
             className="p-2 hover:bg-muted rounded-lg transition-all hover:shadow-[0_0_15px_rgba(58,134,255,0.3)]"
-            title="Önceki ay"
+            title="Previous month"
           >
             <ChevronLeft className="w-5 h-5 text-cyber-blue" />
           </button>
           <button
             onClick={nextMonth}
             className="p-2 hover:bg-muted rounded-lg transition-all hover:shadow-[0_0_15px_rgba(58,134,255,0.3)]"
-            title="Sonraki ay"
+            title="Next month"
           >
             <ChevronRight className="w-5 h-5 text-cyber-blue" />
           </button>
@@ -229,7 +229,7 @@ export function Calendar({
                             : 'bg-gradient-to-r from-muted/50 to-muted/30 border-border/50 text-muted-foreground hover:from-cyber-blue/10 hover:to-cyber-purple/10 hover:border-cyber-blue/40 hover:text-foreground hover:shadow-[0_0_15px_rgba(58,134,255,0.3)]'
                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                         type="button"
-                        title="Kullanıcı seç"
+                        title="Select user"
                         style={assignedUser?.color ? {
                           background: `linear-gradient(135deg, ${assignedUser.color}dd, ${assignedUser.color}99)`,
                           borderColor: `${assignedUser.color}cc`
@@ -243,7 +243,7 @@ export function Calendar({
                         ) : (
                           <>
                             <UserPlus className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform" />
-                            <span className="text-xs relative z-10">Kullanıcı Seç</span>
+                            <span className="text-xs relative z-10">Select User</span>
                           </>
                         )}
                       </button>
@@ -295,10 +295,10 @@ export function Calendar({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl">
               <UserPlus className="w-6 h-6 text-cyber-blue" />
-              <span className="glow-text">Kullanıcı Seç</span>
+              <span className="glow-text">Select User</span>
             </DialogTitle>
             <DialogDescription>
-              {selectedDateForUser && format(new Date(selectedDateForUser), 'd MMMM yyyy', { locale: tr })} için nöbetçi kullanıcı seçin
+              {selectedDateForUser && format(new Date(selectedDateForUser), 'd MMMM yyyy', { locale: tr })} - Select on-call user
             </DialogDescription>
           </DialogHeader>
 
@@ -306,7 +306,7 @@ export function Calendar({
             {users.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <UserPlus className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Henüz kullanıcı eklenmemiş</p>
+                <p className="text-sm">No users added yet</p>
               </div>
             ) : (
               <>
@@ -316,7 +316,7 @@ export function Calendar({
                     className="w-full px-4 py-3 bg-gradient-to-r from-destructive/20 to-destructive/10 border-2 border-destructive/50 text-destructive rounded-lg hover:shadow-[0_0_20px_rgba(255,0,0,0.3)] transition-all font-bold inline-flex items-center justify-center gap-2"
                   >
                     <X className="w-5 h-5" />
-                    <span>Kullanıcıyı Kaldır</span>
+                    <span>Remove User</span>
                   </button>
                 )}
                 
@@ -332,7 +332,7 @@ export function Calendar({
                   >
                     <span>{user.name}</span>
                     {schedule[selectedDateForUser] === user.id && (
-                      <span className="text-xs bg-cyber-cyan/30 text-cyber-cyan px-2 py-1 rounded-full">Seçili</span>
+                      <span className="text-xs bg-cyber-cyan/30 text-cyber-cyan px-2 py-1 rounded-full">Selected</span>
                     )}
                   </button>
                 ))}
@@ -346,23 +346,23 @@ export function Calendar({
       <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground bg-card/50 p-4 rounded-lg border border-border">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-cyber-cyan rounded ring-2 ring-cyber-cyan/50"></div>
-          <span className="font-medium">Bugün</span>
+          <span className="font-medium">Today</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-gradient-to-br from-cyber-pink/30 to-cyber-purple/30 rounded border-2 border-cyber-pink/50"></div>
-          <span>🎉 Resmi Tatil <span className="text-cyber-pink font-mono font-bold">({settings.holidayWeight.toFixed(1)}x)</span></span>
+          <span>🎉 Public Holiday <span className="text-cyber-pink font-mono font-bold">({settings.holidayWeight.toFixed(1)}x)</span></span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-cyber-purple/20 rounded border border-cyber-purple/50"></div>
-          <span>Hafta Sonu <span className="text-cyber-purple font-mono font-bold">({settings.weekendWeight.toFixed(1)}x)</span></span>
+          <span>Weekend <span className="text-cyber-purple font-mono font-bold">({settings.weekendWeight.toFixed(1)}x)</span></span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-card rounded border border-cyber-blue/50"></div>
-          <span>Hafta İçi <span className="text-cyber-blue font-mono font-bold">({settings.weekdayWeight.toFixed(1)}x)</span></span>
+          <span>Weekday <span className="text-cyber-blue font-mono font-bold">({settings.weekdayWeight.toFixed(1)}x)</span></span>
         </div>
         <div className="flex items-center gap-2">
           <StickyNote className="w-4 h-4 text-cyber-yellow" />
-          <span>Not Var</span>
+          <span>Has Note</span>
         </div>
       </div>
     </div>
