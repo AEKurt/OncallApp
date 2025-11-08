@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { User, DayNoteComments, ExtendedSchedule, MonthSettings } from '@/types'
+import { User, DayNoteComments, ExtendedSchedule, MonthSettings, UnavailabilityEntry } from '@/types'
 import { format, isSameMonth, isToday } from 'date-fns'
 import { tr } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Wand2, Zap, RotateCcw, StickyNote, Plus, UserPlus, X, Lock, Unlock, MessageSquare } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Wand2, Zap, RotateCcw, StickyNote, Plus, UserPlus, X, Lock, Unlock, MessageSquare, CalendarX } from 'lucide-react'
 import { getCalendarDays, getDayWeight, isPublicHoliday, getHolidayName } from '@/lib/scheduler'
 import {
   Dialog,
@@ -23,6 +23,7 @@ interface CalendarProps {
   settings?: MonthSettings
   isLocked?: boolean
   isAdmin?: boolean
+  unavailability?: UnavailabilityEntry[]
   currentUser?: {
     uid: string
     displayName: string
@@ -37,6 +38,8 @@ interface CalendarProps {
   onResetSchedule: () => void
   onLockMonth?: () => void
   onUnlockMonth?: () => void
+  onMarkUnavailable?: (date: string, userId: string, reason?: string) => void
+  onRemoveUnavailable?: (date: string, userId: string) => void
 }
 
 export function Calendar({
@@ -47,6 +50,7 @@ export function Calendar({
   settings = { weekdayWeight: 1.0, weekendWeight: 1.5, holidayWeight: 2.0 },
   isLocked = false,
   isAdmin = false,
+  unavailability = [],
   currentUser,
   onDateChange,
   onAssignUser,
@@ -57,6 +61,8 @@ export function Calendar({
   onResetSchedule,
   onLockMonth,
   onUnlockMonth,
+  onMarkUnavailable,
+  onRemoveUnavailable,
 }: CalendarProps) {
   const calendarDays = getCalendarDays(currentDate)
   const [notesOpen, setNotesOpen] = useState(false)
@@ -64,6 +70,8 @@ export function Calendar({
   const [userSelectOpen, setUserSelectOpen] = useState(false)
   const [selectedDateForUser, setSelectedDateForUser] = useState('')
   const [isSelectingSecondary, setIsSelectingSecondary] = useState(false)
+  const [unavailableDialogOpen, setUnavailableDialogOpen] = useState(false)
+  const [unavailableReason, setUnavailableReason] = useState('')
 
   const openNotesThread = (dateString: string) => {
     setSelectedDate(dateString)
@@ -80,6 +88,36 @@ export function Calendar({
     onAssignUser(selectedDateForUser, userId, isSelectingSecondary)
     setUserSelectOpen(false)
     setIsSelectingSecondary(false)
+  }
+
+  const openUnavailableDialog = (dateString: string) => {
+    setSelectedDate(dateString)
+    setUnavailableReason('')
+    setUnavailableDialogOpen(true)
+  }
+
+  const handleMarkUnavailable = () => {
+    if (currentUser && onMarkUnavailable) {
+      onMarkUnavailable(selectedDate, currentUser.uid, unavailableReason || undefined)
+      setUnavailableDialogOpen(false)
+      setUnavailableReason('')
+    }
+  }
+
+  const handleRemoveUnavailable = (dateString: string) => {
+    if (currentUser && onRemoveUnavailable) {
+      onRemoveUnavailable(dateString, currentUser.uid)
+    }
+  }
+
+  // Helper to check if current user is unavailable on a specific date
+  const isUserUnavailable = (dateString: string): UnavailabilityEntry | undefined => {
+    return unavailability.find(entry => entry.date === dateString && entry.userId === currentUser?.uid)
+  }
+
+  // Helper to get all unavailable users for a date
+  const getUnavailableUsers = (dateString: string): UnavailabilityEntry[] => {
+    return unavailability.filter(entry => entry.date === dateString)
   }
 
   const prevMonth = () => {
@@ -255,6 +293,17 @@ export function Calendar({
                       {hasComments && (
                         <MessageSquare className="w-4 h-4 text-cyber-yellow fill-cyber-yellow/30" />
                       )}
+                      {(() => {
+                        const unavailableToday = getUnavailableUsers(dateString)
+                        if (unavailableToday.length > 0) {
+                          return (
+                            <span className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded-full border border-red-500/40 font-mono flex items-center gap-1" title={`${unavailableToday.length} unavailable: ${unavailableToday.map(u => u.userName).join(', ')}`}>
+                              <CalendarX className="w-3 h-3" />
+                              {unavailableToday.length}
+                            </span>
+                          )
+                        }
+                      })()}
                       {isHoliday && (
                         <span className="text-xs bg-cyber-pink/30 text-cyber-pink px-2 py-1 rounded-full border border-cyber-pink/50 font-mono font-bold">
                           🎉 {dayWeight}x
@@ -359,6 +408,47 @@ export function Calendar({
                           </>
                         )}
                       </button>
+
+                      {/* Unavailability Button */}
+                      {(() => {
+                        const userUnavailable = isUserUnavailable(dateString)
+                        const allUnavailable = getUnavailableUsers(dateString)
+                        const hasUnavailable = allUnavailable.length > 0
+
+                        return (
+                          <button
+                            onClick={() => userUnavailable ? handleRemoveUnavailable(dateString) : openUnavailableDialog(dateString)}
+                            disabled={isLocked}
+                            className={`group w-full px-3 py-2.5 rounded-lg border-2 transition-all font-bold inline-flex items-center justify-center gap-2 relative overflow-hidden ${
+                              userUnavailable
+                                ? 'bg-gradient-to-r from-red-500/20 to-red-600/20 border-red-500/60 text-red-400 hover:border-red-500 hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]'
+                                : hasUnavailable
+                                ? 'bg-gradient-to-r from-red-500/10 to-red-600/10 border-red-500/30 text-red-400/70 hover:border-red-500/50'
+                                : 'bg-gradient-to-r from-muted/50 to-muted/30 border-border/50 text-muted-foreground hover:from-red-500/10 hover:to-red-600/10 hover:border-red-500/40 hover:text-red-400/70'
+                            } ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            type="button"
+                            title={userUnavailable ? `You marked unavailable${userUnavailable.reason ? ': ' + userUnavailable.reason : ''}` : hasUnavailable ? `${allUnavailable.length} user(s) unavailable` : 'Mark yourself unavailable'}
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 group-hover:animate-shimmer"></div>
+                            {userUnavailable ? (
+                              <>
+                                <CalendarX className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform fill-red-500/30" />
+                                <span className="text-xs relative z-10">✓</span>
+                              </>
+                            ) : hasUnavailable ? (
+                              <>
+                                <CalendarX className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs relative z-10">{allUnavailable.length}</span>
+                              </>
+                            ) : (
+                              <>
+                                <CalendarX className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs relative z-10">🚫</span>
+                              </>
+                            )}
+                          </button>
+                        )
+                      })()}
                     </div>
                   )}
                 </div>
@@ -463,6 +553,80 @@ export function Calendar({
         </DialogContent>
       </Dialog>
 
+      {/* Unavailability Dialog */}
+      <Dialog open={unavailableDialogOpen} onOpenChange={setUnavailableDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-card via-card to-muted/30 border-2 border-cyber-purple/30 shadow-2xl shadow-cyber-purple/20">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-red-400 to-red-500 bg-clip-text text-transparent flex items-center gap-2">
+              <CalendarX className="w-6 h-6 text-red-400" />
+              Mark Unavailable
+            </DialogTitle>
+            <DialogDescription>
+              {selectedDate && format(new Date(selectedDate), 'd MMMM yyyy', { locale: tr })} - 
+              Mark yourself as unavailable for on-call duty
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <label htmlFor="unavailable-reason" className="text-sm font-medium text-foreground mb-2 block">
+                Reason (Optional)
+              </label>
+              <textarea
+                id="unavailable-reason"
+                value={unavailableReason}
+                onChange={(e) => setUnavailableReason(e.target.value)}
+                placeholder="e.g., On vacation, PTO, Medical appointment..."
+                className="w-full px-3 py-2 bg-background border-2 border-border rounded-lg focus:border-cyber-purple focus:ring-2 focus:ring-cyber-purple/20 transition-all resize-none"
+                rows={3}
+              />
+            </div>
+
+            {/* Show existing unavailability entries for this date */}
+            {(() => {
+              const allUnavailable = getUnavailableUsers(selectedDate)
+              if (allUnavailable.length > 0) {
+                return (
+                  <div className="border-t border-border pt-4">
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Currently Unavailable:</p>
+                    <div className="space-y-2">
+                      {allUnavailable.map((entry) => {
+                        const user = users.find(u => u.id === entry.userId)
+                        return (
+                          <div key={entry.userId} className="flex items-start gap-2 text-sm p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
+                            <CalendarX className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-foreground">{entry.userName || user?.name || 'Unknown User'}</p>
+                              {entry.reason && <p className="text-muted-foreground text-xs mt-0.5">{entry.reason}</p>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              }
+              return null
+            })()}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setUnavailableDialogOpen(false)}
+                className="flex-1 px-4 py-2.5 bg-muted/50 hover:bg-muted border-2 border-border hover:border-border rounded-lg transition-all font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkUnavailable}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-2 border-red-500 hover:border-red-600 rounded-lg transition-all font-bold shadow-lg shadow-red-500/20 hover:shadow-red-500/30"
+              >
+                Mark Unavailable
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground bg-card/50 p-4 rounded-lg border border-border">
         <div className="flex items-center gap-2">
@@ -471,15 +635,15 @@ export function Calendar({
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-gradient-to-br from-cyber-pink/30 to-cyber-purple/30 rounded border-2 border-cyber-pink/50"></div>
-          <span>🎉 Public Holiday <span className="text-cyber-pink font-mono font-bold">({settings.holidayWeight.toFixed(1)}x)</span></span>
+          <span>🎉 Public Holiday <span className="text-cyber-pink font-mono font-bold">({(settings.holidayWeight ?? 2.0).toFixed(1)}x)</span></span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-cyber-purple/20 rounded border border-cyber-purple/50"></div>
-          <span>Weekend <span className="text-cyber-purple font-mono font-bold">({settings.weekendWeight.toFixed(1)}x)</span></span>
+          <span>Weekend <span className="text-cyber-purple font-mono font-bold">({(settings.weekendWeight ?? 1.5).toFixed(1)}x)</span></span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-card rounded border border-cyber-blue/50"></div>
-          <span>Weekday <span className="text-cyber-blue font-mono font-bold">({settings.weekdayWeight.toFixed(1)}x)</span></span>
+          <span>Weekday <span className="text-cyber-blue font-mono font-bold">({(settings.weekdayWeight ?? 1.0).toFixed(1)}x)</span></span>
         </div>
         <div className="flex items-center gap-2">
           <StickyNote className="w-4 h-4 text-cyber-yellow" />

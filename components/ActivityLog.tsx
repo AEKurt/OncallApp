@@ -71,6 +71,16 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
         return '✏️'
       case 'comment_deleted':
         return '🗑️'
+      case 'env_info_added':
+        return '📚'
+      case 'env_info_updated':
+        return '📝'
+      case 'env_info_deleted':
+        return '🗑️'
+      case 'marked_unavailable':
+        return '🚫'
+      case 'removed_unavailable':
+        return '✅'
       default:
         return '📝'
     }
@@ -84,6 +94,7 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
       case 'users_synced':
       case 'schedule_generated':
       case 'comment_added':
+      case 'env_info_added':
         return 'text-green-500'
       case 'team_deleted':
       case 'member_left':
@@ -92,12 +103,16 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
       case 'schedule_reset':
       case 'data_cleared':
       case 'comment_deleted':
+      case 'env_info_deleted':
+      case 'marked_unavailable':
         return 'text-red-500'
       case 'settings_updated':
       case 'data_imported':
+      case 'removed_unavailable':
       case 'users_imported':
       case 'invite_code_regenerated':
       case 'comment_edited':
+      case 'env_info_updated':
         return 'text-blue-500'
       default:
         return 'text-muted-foreground'

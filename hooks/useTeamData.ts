@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, DocumentData, collection, addDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { User, DayNotes, MonthlySchedules, MonthlyNotes, ExtendedSchedule, LockedMonths, MonthlyWeightSettings, TeamMember, ActivityLog } from '@/types'
+import { User, DayNotes, MonthlySchedules, MonthlyNotes, ExtendedSchedule, LockedMonths, MonthlyWeightSettings, TeamMember, ActivityLog, EnvironmentInfoMap, MonthlyUnavailability, UnavailabilityEntry, DayNoteComments, MonthSettings } from '@/types'
 import { WeightSettings } from '@/lib/scheduler'
 
 // Helper to get month key from date (YYYY-MM format)
@@ -24,6 +24,8 @@ export function useTeamData(teamId: string | null, currentDate: Date = new Date(
   const [teamName, setTeamName] = useState<string>('')
   const [createdBy, setCreatedBy] = useState<string>('')
   const [inviteCode, setInviteCode] = useState<string>('')
+  const [environmentInfo, setEnvironmentInfo] = useState<EnvironmentInfoMap>({})
+  const [unavailability, setUnavailability] = useState<MonthlyUnavailability>({})
   const [loading, setLoading] = useState(true)
 
   // Get current month's schedule, notes, and settings
@@ -31,6 +33,7 @@ export function useTeamData(teamId: string | null, currentDate: Date = new Date(
   const schedule = monthlySchedules[monthKey] || {}
   const notes = monthlyNotes[monthKey] || {}
   const isCurrentMonthLocked = lockedMonths[monthKey] || false
+  const currentUnavailability = unavailability[monthKey] || []
   // Use month-specific settings if available, otherwise fall back to default, then to hardcoded default
   const settings = monthlySettings[monthKey] || defaultSettings || { 
     weekdayWeight: 1.0, 
@@ -122,6 +125,8 @@ export function useTeamData(teamId: string | null, currentDate: Date = new Date(
         setTeamName(data.name || '')
         setCreatedBy(data.createdBy || '')
         setInviteCode(data.inviteCode || '')
+        setEnvironmentInfo(data.environmentInfo || {})
+        setUnavailability(data.unavailability || {})
       }
       setLoading(false)
     },
@@ -212,26 +217,43 @@ export function useTeamData(teamId: string | null, currentDate: Date = new Date(
     await updateDoc(teamRef, { lockedMonths: updatedLockedMonths })
   }
 
+  const updateEnvironmentInfo = async (environmentInfo: EnvironmentInfoMap) => {
+    if (!teamId) return
+    const teamRef = doc(db, 'teams', teamId)
+    await updateDoc(teamRef, { environmentInfo })
+  }
+
+  const updateUnavailability = async (unavailability: MonthlyUnavailability) => {
+    if (!teamId) return
+    const teamRef = doc(db, 'teams', teamId)
+    await updateDoc(teamRef, { unavailability })
+  }
+
   return {
     users,
     schedule, // Current month's schedule
     notes, // Current month's notes
     settings, // Current month's settings (or default)
     isCurrentMonthLocked, // Is current month locked?
+    currentUnavailability, // Current month's unavailability
     monthlySchedules, // All monthly schedules
     monthlyNotes, // All monthly notes
     monthlySettings, // All monthly settings
     defaultSettings, // Default/global settings
     lockedMonths, // All locked months
+    unavailability, // All unavailability data
     teamMembers,
     teamName,
     createdBy,
     inviteCode,
+    environmentInfo, // Environment/resource information
     loading,
     updateTeamUsers,
     updateTeamSchedule,
     updateTeamNotes,
     updateTeamSettings,
+    updateEnvironmentInfo,
+    updateUnavailability,
     lockMonth,
     unlockMonth,
   }
@@ -274,6 +296,8 @@ export async function createTeam(userId: string, teamName: string, userEmail: st
     monthlyNotes: {}, // Changed from notes to monthlyNotes
     lockedMonths: {}, // Initialize locked months
     monthlySettings: {}, // Initialize monthly settings
+    environmentInfo: {}, // Initialize environment info
+    unavailability: {}, // Initialize unavailability tracking
     settings: {
       weekdayWeight: 1.0,
       weekendWeight: 1.5,

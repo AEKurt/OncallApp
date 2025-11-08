@@ -94,6 +94,41 @@ export interface TeamMember {
   joinedAt: string
 }
 
+// Environment/Resource Information for On-Call
+export interface EnvironmentInfo {
+  id: string
+  title: string
+  category: 'server' | 'database' | 'api' | 'credential' | 'runbook' | 'contact' | 'other'
+  description?: string
+  content: string // Supports Markdown
+  tags: string[]
+  priority: 'critical' | 'high' | 'medium' | 'low'
+  isSecret?: boolean // If true, show "reveal" button
+  createdBy: string
+  createdByName: string
+  createdAt: string
+  updatedAt: string
+  updatedBy?: string
+  updatedByName?: string
+}
+
+export interface EnvironmentInfoMap {
+  [infoId: string]: EnvironmentInfo
+}
+
+// Unavailability tracking
+export interface UnavailabilityEntry {
+  userId: string
+  userName: string
+  date: string // YYYY-MM-DD
+  reason?: string
+  createdAt: string
+}
+
+export interface MonthlyUnavailability {
+  [monthKey: string]: UnavailabilityEntry[] // monthKey format: "YYYY-MM"
+}
+
 export interface Team {
   id: string
   name: string
@@ -107,6 +142,8 @@ export interface Team {
   lockedMonths: LockedMonths // Months that are locked by admin
   settings: MonthSettings // Default/global settings (includes weights and strategy)
   monthlySettings: MonthlyWeightSettings // Per-month settings (weights and strategy)
+  environmentInfo: EnvironmentInfoMap // On-call resource information
+  unavailability: MonthlyUnavailability // User unavailability tracking
 }
 
 export interface ActivityLog {

@@ -1,4 +1,4 @@
-import { User, ExtendedSchedule } from '@/types'
+import { User, ExtendedSchedule, UnavailabilityEntry } from '@/types'
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -73,18 +73,19 @@ export function getHolidayName(date: Date): string | null {
   return holiday ? holiday.name : null
 }
 
-export function getDayWeight(date: Date, settings: WeightSettings = DEFAULT_WEIGHTS): number {
+export function getDayWeight(date: Date, settings: WeightSettings | { weekdayWeight?: number; weekendWeight?: number; holidayWeight?: number } = DEFAULT_WEIGHTS): number {
   if (isPublicHoliday(date)) {
-    return settings.holidayWeight
+    return settings.holidayWeight ?? DEFAULT_WEIGHTS.holidayWeight
   }
-  return checkIsWeekend(date) ? settings.weekendWeight : settings.weekdayWeight
+  return checkIsWeekend(date) ? (settings.weekendWeight ?? DEFAULT_WEIGHTS.weekendWeight) : (settings.weekdayWeight ?? DEFAULT_WEIGHTS.weekdayWeight)
 }
 
 export function generateSchedule(
   users: User[], 
   currentDate: Date,
   settings: WeightSettings = DEFAULT_WEIGHTS,
-  strategyConfig: ScheduleStrategyConfig = DEFAULT_STRATEGY_CONFIG
+  strategyConfig: ScheduleStrategyConfig = DEFAULT_STRATEGY_CONFIG,
+  unavailability: UnavailabilityEntry[] = []
 ): ExtendedSchedule {
   if (users.length === 0) return {}
 
@@ -95,16 +96,16 @@ export function generateSchedule(
   // Route to appropriate strategy
   switch (strategyConfig.strategy) {
     case 'consecutive':
-      return generateConsecutiveSchedule(users, daysInMonth, settings, strategyConfig.consecutiveDays || 7)
+      return generateConsecutiveSchedule(users, daysInMonth, settings, strategyConfig.consecutiveDays || 7, unavailability)
     case 'round-robin':
-      return generateRoundRobinSchedule(users, daysInMonth, settings)
+      return generateRoundRobinSchedule(users, daysInMonth, settings, unavailability)
     case 'random':
-      return generateRandomSchedule(users, daysInMonth, settings, strategyConfig.seed)
+      return generateRandomSchedule(users, daysInMonth, settings, strategyConfig.seed, unavailability)
     case 'minimize-weekends':
-      return generateMinimizeWeekendsSchedule(users, daysInMonth, settings)
+      return generateMinimizeWeekendsSchedule(users, daysInMonth, settings, unavailability)
     case 'balanced':
     default:
-      return generateBalancedSchedule(users, daysInMonth, settings)
+      return generateBalancedSchedule(users, daysInMonth, settings, unavailability)
   }
 }
 
@@ -112,7 +113,8 @@ export function generateSchedule(
 function generateBalancedSchedule(
   users: User[],
   daysInMonth: Date[],
-  settings: WeightSettings
+  settings: WeightSettings,
+  unavailability: UnavailabilityEntry[] = []
 ): ExtendedSchedule {
   const schedule: ExtendedSchedule = {}
   const primaryWeights: { [userId: string]: number } = {}
@@ -124,16 +126,29 @@ function generateBalancedSchedule(
     secondaryWeights[user.id] = 0
   })
 
+  // Helper to check if a user is unavailable on a date
+  const isUserUnavailable = (userId: string, dateString: string): boolean => {
+    return unavailability.some(entry => entry.userId === userId && entry.date === dateString)
+  }
+
   // For each day in the month, assign primary and secondary users
   daysInMonth.forEach(date => {
     const dateString = format(date, 'yyyy-MM-dd')
     const dayWeight = getDayWeight(date, settings)
     
+    // Filter available users for this date
+    const availableUsers = users.filter(user => !isUserUnavailable(user.id, dateString))
+    
+    // If no users available, skip this day
+    if (availableUsers.length === 0) {
+      return
+    }
+    
     // Find user with minimum primary weight for primary assignment
     let minPrimaryWeight = Infinity
-    let selectedPrimaryId = users[0].id
+    let selectedPrimaryId = availableUsers[0].id
     
-    users.forEach(user => {
+    availableUsers.forEach(user => {
       if (primaryWeights[user.id] < minPrimaryWeight) {
         minPrimaryWeight = primaryWeights[user.id]
         selectedPrimaryId = user.id
@@ -144,8 +159,8 @@ function generateBalancedSchedule(
     let minSecondaryWeight = Infinity
     let selectedSecondaryId: string | undefined = undefined
     
-    if (users.length > 1) {
-      users.forEach(user => {
+    if (availableUsers.length > 1) {
+      availableUsers.forEach(user => {
         if (user.id === selectedPrimaryId) return
         
         if (secondaryWeights[user.id] < minSecondaryWeight) {
@@ -174,15 +189,33 @@ function generateConsecutiveSchedule(
   users: User[],
   daysInMonth: Date[],
   settings: WeightSettings,
-  consecutiveDays: number
+  consecutiveDays: number,
+  unavailability: UnavailabilityEntry[] = []
 ): ExtendedSchedule {
   const schedule: ExtendedSchedule = {}
   let currentUserIndex = 0
   let currentSecondaryIndex = 1 % users.length
   let dayCount = 0
 
+  const isUserUnavailable = (userId: string, dateString: string): boolean => {
+    return unavailability.some(entry => entry.userId === userId && entry.date === dateString)
+  }
+
   daysInMonth.forEach(date => {
     const dateString = format(date, 'yyyy-MM-dd')
+    
+    // Find available primary user
+    let attempts = 0
+    while (attempts < users.length && isUserUnavailable(users[currentUserIndex].id, dateString)) {
+      currentUserIndex = (currentUserIndex + 1) % users.length
+      currentSecondaryIndex = (currentUserIndex + 1) % users.length
+      attempts++
+    }
+    
+    // If no available user found, skip this day
+    if (attempts >= users.length) {
+      return
+    }
     
     // Switch to next user after consecutiveDays
     if (dayCount >= consecutiveDays) {
@@ -192,7 +225,14 @@ function generateConsecutiveSchedule(
     }
     
     const primaryUser = users[currentUserIndex]
-    const secondaryUser = users.length > 1 ? users[currentSecondaryIndex] : undefined
+    let secondaryUser = users.length > 1 ? users[currentSecondaryIndex] : undefined
+    
+    // If secondary is unavailable, try to find another one
+    if (secondaryUser && isUserUnavailable(secondaryUser.id, dateString)) {
+      secondaryUser = users.find((u, i) => 
+        i !== currentUserIndex && !isUserUnavailable(u.id, dateString)
+      )
+    }
     
     schedule[dateString] = {
       primary: primaryUser.id,
@@ -209,17 +249,41 @@ function generateConsecutiveSchedule(
 function generateRoundRobinSchedule(
   users: User[],
   daysInMonth: Date[],
-  settings: WeightSettings
+  settings: WeightSettings,
+  unavailability: UnavailabilityEntry[] = []
 ): ExtendedSchedule {
   const schedule: ExtendedSchedule = {}
   let currentIndex = 0
 
+  const isUserUnavailable = (userId: string, dateString: string): boolean => {
+    return unavailability.some(entry => entry.userId === userId && entry.date === dateString)
+  }
+
   daysInMonth.forEach(date => {
     const dateString = format(date, 'yyyy-MM-dd')
     
+    // Find available primary user
+    let attempts = 0
+    while (attempts < users.length && isUserUnavailable(users[currentIndex].id, dateString)) {
+      currentIndex = (currentIndex + 1) % users.length
+      attempts++
+    }
+    
+    // If no available user found, skip this day
+    if (attempts >= users.length) {
+      return
+    }
+    
     const primaryUser = users[currentIndex]
     const secondaryIndex = (currentIndex + 1) % users.length
-    const secondaryUser = users.length > 1 ? users[secondaryIndex] : undefined
+    let secondaryUser = users.length > 1 ? users[secondaryIndex] : undefined
+    
+    // If secondary is unavailable, try to find another one
+    if (secondaryUser && isUserUnavailable(secondaryUser.id, dateString)) {
+      secondaryUser = users.find((u, i) => 
+        i !== currentIndex && !isUserUnavailable(u.id, dateString)
+      )
+    }
     
     schedule[dateString] = {
       primary: primaryUser.id,
@@ -237,7 +301,8 @@ function generateRandomSchedule(
   users: User[],
   daysInMonth: Date[],
   settings: WeightSettings,
-  seed?: number
+  seed?: number,
+  unavailability: UnavailabilityEntry[] = []
 ): ExtendedSchedule {
   const schedule: ExtendedSchedule = {}
   
@@ -248,21 +313,33 @@ function generateRandomSchedule(
     return randomSeed / 233280
   }
 
+  const isUserUnavailable = (userId: string, dateString: string): boolean => {
+    return unavailability.some(entry => entry.userId === userId && entry.date === dateString)
+  }
+
   daysInMonth.forEach(date => {
     const dateString = format(date, 'yyyy-MM-dd')
     
-    // Random primary
-    const primaryIndex = Math.floor(seededRandom() * users.length)
-    const primaryUser = users[primaryIndex]
+    // Filter available users
+    const availableUsers = users.filter(user => !isUserUnavailable(user.id, dateString))
+    
+    // If no users available, skip this day
+    if (availableUsers.length === 0) {
+      return
+    }
+    
+    // Random primary from available users
+    const primaryIndex = Math.floor(seededRandom() * availableUsers.length)
+    const primaryUser = availableUsers[primaryIndex]
     
     // Random secondary (different from primary)
     let secondaryUser: User | undefined
-    if (users.length > 1) {
-      let secondaryIndex
-      do {
-        secondaryIndex = Math.floor(seededRandom() * users.length)
-      } while (secondaryIndex === primaryIndex && users.length > 1)
-      secondaryUser = users[secondaryIndex]
+    if (availableUsers.length > 1) {
+      const secondaryAvailable = availableUsers.filter(u => u.id !== primaryUser.id)
+      if (secondaryAvailable.length > 0) {
+        const secondaryIndex = Math.floor(seededRandom() * secondaryAvailable.length)
+        secondaryUser = secondaryAvailable[secondaryIndex]
+      }
     }
     
     schedule[dateString] = {
@@ -278,7 +355,8 @@ function generateRandomSchedule(
 function generateMinimizeWeekendsSchedule(
   users: User[],
   daysInMonth: Date[],
-  settings: WeightSettings
+  settings: WeightSettings,
+  unavailability: UnavailabilityEntry[] = []
 ): ExtendedSchedule {
   const schedule: ExtendedSchedule = {}
   const weekendCounts: { [userId: string]: number } = {}
@@ -288,6 +366,10 @@ function generateMinimizeWeekendsSchedule(
     weekendCounts[user.id] = 0
     totalCounts[user.id] = 0
   })
+
+  const isUserUnavailable = (userId: string, dateString: string): boolean => {
+    return unavailability.some(entry => entry.userId === userId && entry.date === dateString)
+  }
 
   // Separate weekends and weekdays
   const weekends: Date[] = []
@@ -305,11 +387,19 @@ function generateMinimizeWeekendsSchedule(
   weekends.forEach(date => {
     const dateString = format(date, 'yyyy-MM-dd')
     
+    // Filter available users
+    const availableUsers = users.filter(user => !isUserUnavailable(user.id, dateString))
+    
+    // If no users available, skip this day
+    if (availableUsers.length === 0) {
+      return
+    }
+    
     // Find user with minimum weekend assignments
     let minWeekendCount = Infinity
-    let selectedPrimaryId = users[0].id
+    let selectedPrimaryId = availableUsers[0].id
     
-    users.forEach(user => {
+    availableUsers.forEach(user => {
       if (weekendCounts[user.id] < minWeekendCount) {
         minWeekendCount = weekendCounts[user.id]
         selectedPrimaryId = user.id
@@ -320,8 +410,8 @@ function generateMinimizeWeekendsSchedule(
     let secondMinWeekendCount = Infinity
     let selectedSecondaryId: string | undefined
     
-    if (users.length > 1) {
-      users.forEach(user => {
+    if (availableUsers.length > 1) {
+      availableUsers.forEach(user => {
         if (user.id === selectedPrimaryId) return
         if (weekendCounts[user.id] < secondMinWeekendCount) {
           secondMinWeekendCount = weekendCounts[user.id]
@@ -347,10 +437,18 @@ function generateMinimizeWeekendsSchedule(
   weekdays.forEach(date => {
     const dateString = format(date, 'yyyy-MM-dd')
     
-    let minTotalCount = Infinity
-    let selectedPrimaryId = users[0].id
+    // Filter available users
+    const availableUsers = users.filter(user => !isUserUnavailable(user.id, dateString))
     
-    users.forEach(user => {
+    // If no users available, skip this day
+    if (availableUsers.length === 0) {
+      return
+    }
+    
+    let minTotalCount = Infinity
+    let selectedPrimaryId = availableUsers[0].id
+    
+    availableUsers.forEach(user => {
       if (totalCounts[user.id] < minTotalCount) {
         minTotalCount = totalCounts[user.id]
         selectedPrimaryId = user.id
@@ -360,8 +458,8 @@ function generateMinimizeWeekendsSchedule(
     let secondMinTotalCount = Infinity
     let selectedSecondaryId: string | undefined
     
-    if (users.length > 1) {
-      users.forEach(user => {
+    if (availableUsers.length > 1) {
+      availableUsers.forEach(user => {
         if (user.id === selectedPrimaryId) return
         if (totalCounts[user.id] < secondMinTotalCount) {
           secondMinTotalCount = totalCounts[user.id]

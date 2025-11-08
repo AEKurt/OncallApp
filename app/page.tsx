@@ -14,8 +14,9 @@ import { TeamSelection } from '@/components/TeamSelection'
 import { TeamMembers } from '@/components/TeamMembers'
 import { ActivityLogComponent } from '@/components/ActivityLog'
 import { ThemeToggleCompact } from '@/components/ThemeToggle'
+import { EnvironmentInfo } from '@/components/EnvironmentInfo'
 import { generateSchedule } from '@/lib/scheduler'
-import { User, MonthSettings, NoteComment, DayNoteComments } from '@/types'
+import { User, MonthSettings, NoteComment, DayNoteComments, EnvironmentInfo as EnvInfo, UnavailabilityEntry } from '@/types'
 import { Users, Calendar as CalendarIcon, Zap, LogOut, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTeamData, logActivity } from '@/hooks/useTeamData'
@@ -32,15 +33,22 @@ export default function Home() {
     notes,
     settings,
     isCurrentMonthLocked,
+    currentUnavailability,
+    unavailability,
+    monthlySchedules,
+    monthlyNotes,
     teamMembers,
     teamName,
     createdBy,
     inviteCode,
+    environmentInfo,
     loading: teamLoading,
     updateTeamUsers,
     updateTeamSchedule,
     updateTeamNotes,
     updateTeamSettings,
+    updateEnvironmentInfo,
+    updateUnavailability,
     lockMonth,
     unlockMonth,
   } = useTeamData(selectedTeamId, currentDate) // Pass currentDate to hook
@@ -269,7 +277,7 @@ export default function Home() {
       return
     }
     
-    // Pass the strategy configuration along with weight settings
+    // Pass the strategy configuration along with weight settings and unavailability
     const newSchedule = generateSchedule(
       users, 
       currentDate, 
@@ -278,7 +286,8 @@ export default function Home() {
         weekendWeight: settings.weekendWeight || 1.5,
         holidayWeight: settings.holidayWeight || 2.0
       },
-      settings.strategyConfig || { strategy: 'balanced', consecutiveDays: 7 }
+      settings.strategyConfig || { strategy: 'balanced', consecutiveDays: 7 },
+      currentUnavailability || []
     )
     updateTeamSchedule(newSchedule)
     
@@ -486,6 +495,100 @@ export default function Home() {
     }
   }
 
+  const handleAddEnvironmentInfo = (info: Omit<EnvInfo, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newInfo: EnvInfo = {
+      ...info,
+      id: `env_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    
+    updateEnvironmentInfo({
+      ...environmentInfo,
+      [newInfo.id]: newInfo
+    })
+    
+    // Log activity
+    if (selectedTeamId && user) {
+      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'env_info_added', `Added environment info: ${info.title}`)
+    }
+  }
+
+  const handleUpdateEnvironmentInfo = (id: string, updates: Partial<EnvInfo>) => {
+    const updatedInfo = {
+      ...environmentInfo[id],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    }
+    
+    updateEnvironmentInfo({
+      ...environmentInfo,
+      [id]: updatedInfo
+    })
+    
+    // Log activity
+    if (selectedTeamId && user) {
+      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'env_info_updated', `Updated environment info: ${updatedInfo.title}`)
+    }
+  }
+
+  const handleDeleteEnvironmentInfo = (id: string) => {
+    const infoTitle = environmentInfo[id]?.title
+    const { [id]: deleted, ...remaining } = environmentInfo
+    
+    updateEnvironmentInfo(remaining)
+    
+    // Log activity
+    if (selectedTeamId && user) {
+      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'env_info_deleted', `Deleted environment info: ${infoTitle}`)
+    }
+  }
+
+  const handleMarkUnavailable = (date: string, userId: string, reason?: string) => {
+    if (!user) return
+    
+    const monthKey = format(currentDate, 'yyyy-MM')
+    const newEntry: UnavailabilityEntry = {
+      userId,
+      userName: user.displayName || 'Unknown User',
+      date,
+      reason,
+      createdAt: new Date().toISOString(),
+    }
+    
+    const updatedUnavailability = {
+      ...unavailability,
+      [monthKey]: [...(unavailability[monthKey] || []), newEntry]
+    }
+    
+    updateUnavailability(updatedUnavailability)
+    
+    // Log activity
+    if (selectedTeamId) {
+      const reasonText = reason ? ` (Reason: ${reason})` : ''
+      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'marked_unavailable', `Marked unavailable on ${format(new Date(date), 'MMM d, yyyy')}${reasonText}`)
+    }
+  }
+
+  const handleRemoveUnavailable = (date: string, userId: string) => {
+    if (!user) return
+    
+    const monthKey = format(currentDate, 'yyyy-MM')
+    const updatedUnavailability = {
+      ...unavailability,
+      [monthKey]: (unavailability[monthKey] || []).filter(
+        entry => !(entry.userId === userId && entry.date === date)
+      )
+    }
+    
+    updateUnavailability(updatedUnavailability)
+    
+    // Log activity
+    if (selectedTeamId) {
+      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'removed_unavailable', `Removed unavailability on ${format(new Date(date), 'MMM d, yyyy')}`)
+    }
+  }
+
   const handleSignOut = async () => {
     if (confirm('Sign out?')) {
       setSelectedTeamId(null)
@@ -669,6 +772,7 @@ export default function Home() {
                 settings={settings}
                 isLocked={isCurrentMonthLocked}
                 isAdmin={isAdmin}
+                unavailability={currentUnavailability}
                 currentUser={user ? { uid: user.uid, displayName: user.displayName || 'Unknown', photoURL: user.photoURL || undefined } : undefined}
                 onDateChange={setCurrentDate}
                 onAssignUser={handleAssignUser}
@@ -679,6 +783,8 @@ export default function Home() {
                 onResetSchedule={handleResetSchedule}
                 onLockMonth={handleLockMonth}
                 onUnlockMonth={handleUnlockMonth}
+                onMarkUnavailable={handleMarkUnavailable}
+                onRemoveUnavailable={handleRemoveUnavailable}
               />
             </div>
           ) : (
@@ -729,6 +835,20 @@ export default function Home() {
       {/* Activity Log Button (Floating) */}
       {selectedTeamId && (
         <ActivityLogComponent teamId={selectedTeamId} />
+      )}
+
+      {/* Environment Info Button (Floating) */}
+      {selectedTeamId && user && (
+        <EnvironmentInfo
+          environmentInfo={environmentInfo}
+          currentUser={{
+            uid: user.uid,
+            displayName: user.displayName || 'Unknown User',
+          }}
+          onAdd={handleAddEnvironmentInfo}
+          onUpdate={handleUpdateEnvironmentInfo}
+          onDelete={handleDeleteEnvironmentInfo}
+        />
       )}
     </main>
   )
