@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, DocumentData, collection, addDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { User, DayNotes, MonthlySchedules, MonthlyNotes, ExtendedSchedule, LockedMonths, MonthlyWeightSettings, TeamMember, ActivityLog, EnvironmentInfoMap, MonthlyUnavailability, UnavailabilityEntry, DayNoteComments, MonthSettings } from '@/types'
+import { User, MonthlySchedules, MonthlyNotes, ExtendedSchedule, LockedMonths, MonthlyWeightSettings, TeamMember, ActivityLog, EnvironmentInfoMap, MonthlyUnavailability, DayNoteComments, MonthSettings } from '@/types'
 import { WeightSettings } from '@/lib/scheduler'
 
 // Helper to get month key from date (YYYY-MM format)
@@ -159,7 +159,7 @@ export function useTeamData(teamId: string | null, currentDate: Date = new Date(
     await updateDoc(teamRef, { schedules: updatedMonthlySchedules })
   }
 
-  const updateTeamNotes = async (newNotes: DayNotes, targetDate: Date = currentDate) => {
+  const updateTeamNotes = async (newNotes: DayNoteComments, targetDate: Date = currentDate) => {
     if (!teamId) return
     const teamRef = doc(db, 'teams', teamId)
     const key = getMonthKey(targetDate)
@@ -173,7 +173,7 @@ export function useTeamData(teamId: string | null, currentDate: Date = new Date(
     await updateDoc(teamRef, { monthlyNotes: updatedMonthlyNotes })
   }
 
-  const updateTeamSettings = async (newSettings: WeightSettings, targetDate?: Date) => {
+  const updateTeamSettings = async (newSettings: MonthSettings, targetDate?: Date) => {
     if (!teamId) return
     const teamRef = doc(db, 'teams', teamId)
     
