@@ -20,22 +20,24 @@ export interface WeightSettings {
 
 interface SettingsProps {
   settings: WeightSettings
-  onSettingsChange: (settings: WeightSettings) => void
+  currentMonth?: string // e.g., "November 2025"
+  onSettingsChange: (settings: WeightSettings, isMonthSpecific: boolean) => void
 }
 
-export function Settings({ settings, onSettingsChange }: SettingsProps) {
+export function Settings({ settings, currentMonth, onSettingsChange }: SettingsProps) {
   const [localSettings, setLocalSettings] = useState(settings)
+  const [saveForThisMonth, setSaveForThisMonth] = useState(false)
   const [open, setOpen] = useState(false)
 
   const handleSave = () => {
-    onSettingsChange(localSettings)
+    onSettingsChange(localSettings, saveForThisMonth)
     setOpen(false)
   }
 
   const handleReset = () => {
     const defaultSettings = { weekdayWeight: 1.0, weekendWeight: 1.5, holidayWeight: 2.0 }
     setLocalSettings(defaultSettings)
-    onSettingsChange(defaultSettings)
+    onSettingsChange(defaultSettings, saveForThisMonth)
   }
 
   return (
@@ -56,6 +58,11 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
           </DialogTitle>
           <DialogDescription>
             Hafta içi ve hafta sonu günlerinin ağırlıklarını özelleştirin
+            {currentMonth && (
+              <div className="mt-2 text-xs">
+                <strong className="text-foreground">Aktif Ay:</strong> {currentMonth}
+              </div>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -152,6 +159,30 @@ export function Settings({ settings, onSettingsChange }: SettingsProps) {
               sayılmasını sağlayabilirsiniz.
             </p>
           </div>
+
+          {/* Month-Specific Setting Option */}
+          {currentMonth && (
+            <div className="p-4 bg-card border-2 border-cyber-blue/30 rounded-lg">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveForThisMonth}
+                  onChange={(e) => setSaveForThisMonth(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded border-border text-cyber-blue focus:ring-cyber-blue focus:ring-offset-0"
+                />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-foreground">
+                    🗓️ Sadece Bu Ay İçin Kaydet ({currentMonth})
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    İşaretli: Bu ayarlama sadece <strong>{currentMonth}</strong> için geçerli olur.
+                    <br />
+                    İşaretsiz: Bu ayarlama tüm aylarda varsayılan olarak kullanılır.
+                  </p>
+                </div>
+              </label>
+            </div>
+          )}
 
           {/* Comparison */}
           <div className="flex items-center justify-between p-4 bg-card border border-border rounded-lg">

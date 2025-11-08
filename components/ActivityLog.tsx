@@ -43,6 +43,10 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
         return '🚫'
       case 'invite_code_regenerated':
         return '🔄'
+      case 'month_locked':
+        return '🔒'
+      case 'month_unlocked':
+        return '🔓'
       case 'user_added':
         return '➕'
       case 'user_removed':

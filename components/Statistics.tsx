@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Schedule } from '@/types'
+import { User, ExtendedSchedule } from '@/types'
 import { calculateUserWeights, WeightSettings, DEFAULT_WEIGHTS } from '@/lib/scheduler'
 import { BarChart3, TrendingUp, Users as UsersIcon, Award } from 'lucide-react'
 import {
@@ -15,7 +15,7 @@ import {
 
 interface StatisticsProps {
   users: User[]
-  schedule: Schedule
+  schedule: ExtendedSchedule
   currentDate: Date
   settings?: WeightSettings
 }
@@ -24,12 +24,12 @@ export function Statistics({ users, schedule, currentDate, settings = DEFAULT_WE
   const [open, setOpen] = useState(false)
   const userWeights = calculateUserWeights(users, schedule, currentDate, settings)
 
-  const totalWeight = Object.values(userWeights).reduce((sum, w) => sum + w, 0)
+  const totalWeight = Object.values(userWeights).reduce((sum, w) => sum + w.total, 0)
   const avgWeight = users.length > 0 ? totalWeight / users.length : 0
-  const maxWeight = Math.max(...Object.values(userWeights), 0)
+  const maxWeight = Math.max(...Object.values(userWeights).map(w => w.total), 0)
 
   const sortedUsers = [...users].sort(
-    (a, b) => (userWeights[b.id] || 0) - (userWeights[a.id] || 0)
+    (a, b) => (userWeights[b.id]?.total || 0) - (userWeights[a.id]?.total || 0)
   )
 
   return (
@@ -117,15 +117,15 @@ export function Statistics({ users, schedule, currentDate, settings = DEFAULT_WE
               ) : (
                 <div className="space-y-4">
                   {sortedUsers.map((user, index) => {
-                    const weight = userWeights[user.id] || 0
+                    const weight = userWeights[user.id] || { primary: 0, secondary: 0, total: 0 }
                     const percentage =
-                      maxWeight > 0 ? (weight / maxWeight) * 100 : 0
+                      maxWeight > 0 ? (weight.total / maxWeight) * 100 : 0
 
                     return (
                       <div key={user.id} className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2">
-                            {index === 0 && weight > 0 && (
+                            {index === 0 && weight.total > 0 && (
                               <Award className="w-4 h-4 text-cyber-yellow" />
                             )}
                             <div 
@@ -136,9 +136,19 @@ export function Statistics({ users, schedule, currentDate, settings = DEFAULT_WE
                               {user.name}
                             </span>
                           </div>
-                          <span className="text-lg font-mono font-bold text-cyber-cyan">
-                            {weight.toFixed(1)}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <div className="text-xs text-muted-foreground">
+                              <span className="text-cyber-blue font-semibold">Ana: {weight.primary.toFixed(1)}</span>
+                              {weight.secondary > 0 && (
+                                <span className="ml-2 text-amber-500 font-semibold">
+                                  Yedek: {weight.secondary.toFixed(1)}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-lg font-mono font-bold text-cyber-cyan">
+                              {weight.total.toFixed(1)}
+                            </span>
+                          </div>
                         </div>
                         <div className="relative w-full bg-muted rounded-full h-3 overflow-hidden border border-border">
                           <div

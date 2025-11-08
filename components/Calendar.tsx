@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Schedule, DayNotes } from '@/types'
+import { User, DayNotes, ExtendedSchedule } from '@/types'
 import { format, isSameMonth, isToday } from 'date-fns'
 import { tr } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Wand2, Zap, RotateCcw, StickyNote, Plus, UserPlus, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Wand2, Zap, RotateCcw, StickyNote, Plus, UserPlus, X, Lock, Unlock } from 'lucide-react'
 import { getCalendarDays, getDayWeight, WeightSettings, DEFAULT_WEIGHTS, isPublicHoliday, getHolidayName } from '@/lib/scheduler'
 import {
   Dialog,
@@ -17,15 +17,19 @@ import { RichTextEditor } from '@/components/RichTextEditor'
 
 interface CalendarProps {
   users: User[]
-  schedule: Schedule
+  schedule: ExtendedSchedule
   notes: DayNotes
   currentDate: Date
   settings?: WeightSettings
+  isLocked?: boolean
+  isAdmin?: boolean
   onDateChange: (date: Date) => void
-  onAssignUser: (date: string, userId: string | null) => void
+  onAssignUser: (date: string, userId: string | null, isSecondary?: boolean) => void
   onUpdateNote: (date: string, note: string) => void
   onGenerateSchedule: () => void
   onResetSchedule: () => void
+  onLockMonth?: () => void
+  onUnlockMonth?: () => void
 }
 
 export function Calendar({
@@ -34,11 +38,15 @@ export function Calendar({
   notes,
   currentDate,
   settings = DEFAULT_WEIGHTS,
+  isLocked = false,
+  isAdmin = false,
   onDateChange,
   onAssignUser,
   onUpdateNote,
   onGenerateSchedule,
   onResetSchedule,
+  onLockMonth,
+  onUnlockMonth,
 }: CalendarProps) {
   const calendarDays = getCalendarDays(currentDate)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -46,6 +54,7 @@ export function Calendar({
   const [selectedNote, setSelectedNote] = useState('')
   const [userSelectOpen, setUserSelectOpen] = useState(false)
   const [selectedDateForUser, setSelectedDateForUser] = useState('')
+  const [isSelectingSecondary, setIsSelectingSecondary] = useState(false)
 
   const openNoteEditor = (dateString: string, note: string) => {
     setSelectedDate(dateString)
@@ -53,14 +62,16 @@ export function Calendar({
     setEditorOpen(true)
   }
 
-  const openUserSelect = (dateString: string) => {
+  const openUserSelect = (dateString: string, forSecondary: boolean = false) => {
     setSelectedDateForUser(dateString)
+    setIsSelectingSecondary(forSecondary)
     setUserSelectOpen(true)
   }
 
   const handleUserSelect = (userId: string | null) => {
-    onAssignUser(selectedDateForUser, userId)
+    onAssignUser(selectedDateForUser, userId, isSelectingSecondary)
     setUserSelectOpen(false)
+    setIsSelectingSecondary(false)
   }
 
   const handleNoteSave = (content: string) => {
@@ -87,21 +98,55 @@ export function Calendar({
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground glow-text">
-            {format(currentDate, 'MMMM yyyy', { locale: tr })}
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            View and edit on-call schedule
-          </p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground glow-text flex items-center gap-2">
+              {format(currentDate, 'MMMM yyyy', { locale: tr })}
+              {isLocked && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/20 border border-amber-500/50 rounded-lg text-amber-500 text-xs font-bold">
+                  <Lock className="w-3 h-3" />
+                  LOCKED
+                </span>
+              )}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isLocked ? '🔒 This month is locked by admin' : 'View and edit on-call schedule'}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Lock/Unlock Button (Admin Only) */}
+          {isAdmin && (
+            <>
+              {isLocked ? (
+                <button
+                  onClick={onUnlockMonth}
+                  className="px-3 py-2 bg-gradient-to-r from-amber-500/20 to-amber-600/20 border-2 border-amber-500/50 text-amber-500 rounded-lg hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] transition-all font-bold text-sm inline-flex items-center justify-center gap-1.5 group"
+                  title="Unlock Month"
+                >
+                  <Unlock className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  <span className="hidden lg:inline">Unlock</span>
+                </button>
+              ) : (
+                <button
+                  onClick={onLockMonth}
+                  className="px-3 py-2 bg-gradient-to-r from-green-500/20 to-green-600/20 border-2 border-green-500/50 text-green-500 rounded-lg hover:shadow-[0_0_15px_rgba(34,197,94,0.4)] transition-all font-bold text-sm inline-flex items-center justify-center gap-1.5 group"
+                  title="Lock Month"
+                >
+                  <Lock className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  <span className="hidden lg:inline">Lock</span>
+                </button>
+              )}
+              <div className="w-px h-6 bg-border mx-1"></div>
+            </>
+          )}
+          
           {/* Generate Schedule Button */}
           <button
             onClick={onGenerateSchedule}
-            disabled={users.length === 0}
+            disabled={users.length === 0 || isLocked}
             className="px-4 py-2 bg-gradient-to-r from-cyber-blue via-cyber-purple to-cyber-pink text-white rounded-lg hover:shadow-[0_0_20px_rgba(58,134,255,0.6)] transition-all font-bold text-sm inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
-            title="Auto Assign"
+            title={isLocked ? "Month is locked" : "Auto Assign"}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-cyber-pink via-cyber-purple to-cyber-blue opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <Wand2 className="w-4 h-4 relative z-10 group-hover:rotate-12 transition-transform" />
@@ -116,9 +161,9 @@ export function Calendar({
                 onResetSchedule()
               }
             }}
-            disabled={Object.keys(schedule).length === 0}
+            disabled={Object.keys(schedule).length === 0 || isLocked}
             className="px-3 py-2 bg-gradient-to-r from-cyber-pink/20 to-destructive/20 border-2 border-cyber-pink/50 text-cyber-pink rounded-lg hover:shadow-[0_0_15px_rgba(255,0,110,0.4)] transition-all font-bold text-sm inline-flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed group"
-            title="Reset Schedule"
+            title={isLocked ? "Month is locked" : "Reset Schedule"}
           >
             <RotateCcw className="w-4 h-4 group-hover:rotate-[-360deg] transition-transform duration-500" />
           </button>
@@ -163,8 +208,9 @@ export function Calendar({
         <div className="grid grid-cols-7 bg-card/50 cyber-grid-bg">
           {calendarDays.map((date) => {
             const dateString = format(date, 'yyyy-MM-dd')
-            const assignedUserId = schedule[dateString]
-            const assignedUser = assignedUserId ? getUserById(assignedUserId) : null
+            const assignment = schedule[dateString]
+            const primaryUser = assignment?.primary ? getUserById(assignment.primary) : null
+            const secondaryUser = assignment?.secondary ? getUserById(assignment.secondary) : null
             const dayNote = notes[dateString] || ''
             const isCurrentMonth = isSameMonth(date, currentDate)
             const isCurrentDay = isToday(date)
@@ -219,31 +265,67 @@ export function Calendar({
 
                   {isCurrentMonth && (
                     <div className="flex-1 flex flex-col gap-2">
-                      {/* User Assignment Card - Click to select */}
+                      {/* Primary User Assignment */}
                       <button
                         onClick={() => openUserSelect(dateString)}
                         disabled={users.length === 0}
-                        className={`group w-full px-3 py-3 rounded-lg border-2 transition-all font-bold inline-flex items-center justify-center gap-2 relative overflow-hidden ${
-                          assignedUser
+                        className={`group w-full px-3 py-2.5 rounded-lg border-2 transition-all font-bold inline-flex items-center justify-between gap-2 relative overflow-hidden ${
+                          primaryUser
                             ? 'text-white hover:shadow-[0_0_25px_rgba(255,255,255,0.4)]'
                             : 'bg-gradient-to-r from-muted/50 to-muted/30 border-border/50 text-muted-foreground hover:from-cyber-blue/10 hover:to-cyber-purple/10 hover:border-cyber-blue/40 hover:text-foreground hover:shadow-[0_0_15px_rgba(58,134,255,0.3)]'
                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                         type="button"
-                        title="Select user"
-                        style={assignedUser?.color ? {
-                          background: `linear-gradient(135deg, ${assignedUser.color}dd, ${assignedUser.color}99)`,
-                          borderColor: `${assignedUser.color}cc`
+                        title="Ana Nöbetçi"
+                        style={primaryUser?.color ? {
+                          background: `linear-gradient(135deg, ${primaryUser.color}dd, ${primaryUser.color}99)`,
+                          borderColor: `${primaryUser.color}cc`
                         } : undefined}
                       >
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                        {assignedUser ? (
+                        {primaryUser ? (
                           <>
-                            <span className="text-sm relative z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{assignedUser.name}</span>
+                            <div className="flex items-center gap-2 relative z-10">
+                              <span className="text-xs font-bold opacity-70">Ana</span>
+                              <span className="text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{primaryUser.name}</span>
+                            </div>
                           </>
                         ) : (
                           <>
                             <UserPlus className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform" />
-                            <span className="text-xs relative z-10">Select User</span>
+                            <span className="text-xs relative z-10">Ana Nöbetçi</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Secondary User Assignment */}
+                      <button
+                        onClick={() => openUserSelect(dateString, true)}
+                        disabled={users.length === 0 || !primaryUser}
+                        className={`group w-full px-3 py-2 rounded-lg border-2 transition-all font-medium inline-flex items-center justify-between gap-2 relative overflow-hidden ${
+                          secondaryUser
+                            ? 'text-white hover:shadow-[0_0_20px_rgba(255,255,255,0.3)]'
+                            : 'bg-gradient-to-r from-muted/30 to-muted/20 border-border/30 text-muted-foreground hover:from-amber-500/10 hover:to-amber-600/10 hover:border-amber-500/40 hover:text-foreground hover:shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                        } disabled:opacity-30 disabled:cursor-not-allowed`}
+                        type="button"
+                        title="Yedek Nöbetçi"
+                        style={secondaryUser?.color ? {
+                          background: `linear-gradient(135deg, ${secondaryUser.color}aa, ${secondaryUser.color}66)`,
+                          borderColor: `${secondaryUser.color}88`,
+                          opacity: 0.85
+                        } : undefined}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        {secondaryUser ? (
+                          <>
+                            <div className="flex items-center gap-2 relative z-10">
+                              <span className="text-xs opacity-70">Yedek</span>
+                              <span className="text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">{secondaryUser.name}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-3 h-3 relative z-10 group-hover:scale-110 transition-transform" />
+                            <span className="text-xs relative z-10">Yedek</span>
                           </>
                         )}
                       </button>
@@ -294,11 +376,14 @@ export function Calendar({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-2xl">
-              <UserPlus className="w-6 h-6 text-cyber-blue" />
-              <span className="glow-text">Select User</span>
+              <UserPlus className={`w-6 h-6 ${isSelectingSecondary ? 'text-amber-500' : 'text-cyber-blue'}`} />
+              <span className="glow-text">
+                {isSelectingSecondary ? 'Yedek Nöbetçi Seç' : 'Ana Nöbetçi Seç'}
+              </span>
             </DialogTitle>
             <DialogDescription>
-              {selectedDateForUser && format(new Date(selectedDateForUser), 'd MMMM yyyy', { locale: tr })} - Select on-call user
+              {selectedDateForUser && format(new Date(selectedDateForUser), 'd MMMM yyyy', { locale: tr })} - 
+              {isSelectingSecondary ? ' Yedek nöbetçiyi seçin' : ' Ana nöbetçiyi seçin'}
             </DialogDescription>
           </DialogHeader>
 
@@ -310,32 +395,56 @@ export function Calendar({
               </div>
             ) : (
               <>
-                {schedule[selectedDateForUser] && (
-                  <button
-                    onClick={() => handleUserSelect(null)}
-                    className="w-full px-4 py-3 bg-gradient-to-r from-destructive/20 to-destructive/10 border-2 border-destructive/50 text-destructive rounded-lg hover:shadow-[0_0_20px_rgba(255,0,0,0.3)] transition-all font-bold inline-flex items-center justify-center gap-2"
-                  >
-                    <X className="w-5 h-5" />
-                    <span>Remove User</span>
-                  </button>
-                )}
-                
-                {users.map((user) => (
-                  <button
-                    key={user.id}
-                    onClick={() => handleUserSelect(user.id)}
-                    className={`w-full px-4 py-3 rounded-lg border-2 transition-all font-bold inline-flex items-center justify-center gap-2 ${
-                      schedule[selectedDateForUser] === user.id
-                        ? 'bg-gradient-to-r from-cyber-blue/30 to-cyber-purple/30 border-cyber-blue text-cyber-blue shadow-[0_0_20px_rgba(58,134,255,0.4)]'
-                        : 'bg-gradient-to-r from-muted/50 to-muted/30 border-border hover:from-cyber-blue/20 hover:to-cyber-purple/20 hover:border-cyber-blue/50 hover:shadow-[0_0_15px_rgba(58,134,255,0.3)]'
-                    }`}
-                  >
-                    <span>{user.name}</span>
-                    {schedule[selectedDateForUser] === user.id && (
-                      <span className="text-xs bg-cyber-cyan/30 text-cyber-cyan px-2 py-1 rounded-full">Selected</span>
-                    )}
-                  </button>
-                ))}
+                {/* Get current assignment to check primary user */}
+                {(() => {
+                  const currentAssignment = schedule[selectedDateForUser]
+                  const currentPrimaryId = currentAssignment?.primary
+                  const currentSecondaryId = currentAssignment?.secondary
+                  const currentUserId = isSelectingSecondary ? currentSecondaryId : currentPrimaryId
+                  
+                  return (
+                    <>
+                      {currentUserId && (
+                        <button
+                          onClick={() => handleUserSelect(null)}
+                          className="w-full px-4 py-3 bg-gradient-to-r from-destructive/20 to-destructive/10 border-2 border-destructive/50 text-destructive rounded-lg hover:shadow-[0_0_20px_rgba(255,0,0,0.3)] transition-all font-bold inline-flex items-center justify-center gap-2"
+                        >
+                          <X className="w-5 h-5" />
+                          <span>Remove {isSelectingSecondary ? 'Secondary' : 'Primary'}</span>
+                        </button>
+                      )}
+                      
+                      {users.map((user) => {
+                        // Disable if this user is already assigned as primary and we're selecting secondary
+                        const isDisabled = isSelectingSecondary && currentPrimaryId === user.id
+                        const isCurrentlySelected = currentUserId === user.id
+                        
+                        return (
+                          <button
+                            key={user.id}
+                            onClick={() => !isDisabled && handleUserSelect(user.id)}
+                            disabled={isDisabled}
+                            className={`w-full px-4 py-3 rounded-lg border-2 transition-all font-bold inline-flex items-center justify-center gap-2 ${
+                              isDisabled
+                                ? 'bg-muted/30 border-border/30 text-muted-foreground opacity-40 cursor-not-allowed'
+                                : isCurrentlySelected
+                                ? 'bg-gradient-to-r from-cyber-blue/30 to-cyber-purple/30 border-cyber-blue text-cyber-blue shadow-[0_0_20px_rgba(58,134,255,0.4)]'
+                                : 'bg-gradient-to-r from-muted/50 to-muted/30 border-border hover:from-cyber-blue/20 hover:to-cyber-purple/20 hover:border-cyber-blue/50 hover:shadow-[0_0_15px_rgba(58,134,255,0.3)]'
+                            }`}
+                          >
+                            <span>{user.name}</span>
+                            {isDisabled && (
+                              <span className="text-xs bg-amber-500/30 text-amber-500 px-2 py-1 rounded-full">Ana Nöbetçi</span>
+                            )}
+                            {isCurrentlySelected && !isDisabled && (
+                              <span className="text-xs bg-cyber-cyan/30 text-cyber-cyan px-2 py-1 rounded-full">Selected</span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </>
+                  )
+                })()}
               </>
             )}
           </div>

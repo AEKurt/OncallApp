@@ -1,6 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { doc, updateDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { format } from 'date-fns'
+import { tr } from 'date-fns/locale'
 import { Calendar } from '@/components/Calendar'
 import { UserManagement } from '@/components/UserManagement'
 import { Statistics } from '@/components/Statistics'
@@ -11,7 +15,7 @@ import { TeamMembers } from '@/components/TeamMembers'
 import { ActivityLogComponent } from '@/components/ActivityLog'
 import { ThemeToggleCompact } from '@/components/ThemeToggle'
 import { generateSchedule, DEFAULT_WEIGHTS } from '@/lib/scheduler'
-import { User, Schedule, DayNotes } from '@/types'
+import { User, ExtendedSchedule } from '@/types'
 import { Users, Calendar as CalendarIcon, Zap, LogOut, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTeamData, logActivity } from '@/hooks/useTeamData'
@@ -27,6 +31,12 @@ export default function Home() {
     schedule,
     notes,
     settings,
+    isCurrentMonthLocked,
+    monthlySchedules,
+    monthlyNotes,
+    monthlySettings,
+    defaultSettings,
+    lockedMonths,
     teamMembers,
     teamName,
     createdBy,
@@ -36,7 +46,9 @@ export default function Home() {
     updateTeamSchedule,
     updateTeamNotes,
     updateTeamSettings,
-  } = useTeamData(selectedTeamId)
+    lockMonth,
+    unlockMonth,
+  } = useTeamData(selectedTeamId, currentDate) // Pass currentDate to hook
 
   const weightSettings = settings || DEFAULT_WEIGHTS
   
@@ -154,14 +166,46 @@ export default function Home() {
     const newUsers = users.filter(user => user.id !== id)
     updateTeamUsers(newUsers)
     
-    // Remove user from schedule
-    const newSchedule = { ...schedule }
-    Object.keys(newSchedule).forEach(date => {
-      if (newSchedule[date] === id) {
-        delete newSchedule[date]
+    // Remove user from ALL monthly schedules
+    if (selectedTeamId) {
+      const updatedSchedules = { ...monthlySchedules }
+      let removedFromAnyMonth = false
+      
+      Object.keys(updatedSchedules).forEach(monthKey => {
+        Object.keys(updatedSchedules[monthKey]).forEach(date => {
+          const assignment = updatedSchedules[monthKey][date]
+          let modified = false
+          
+          // Check and remove from primary
+          if (assignment.primary === id) {
+            // If there's a secondary, promote them to primary
+            if (assignment.secondary) {
+              updatedSchedules[monthKey][date] = { primary: assignment.secondary }
+              delete updatedSchedules[monthKey][date].secondary
+            } else {
+              // No secondary, delete the whole assignment
+              delete updatedSchedules[monthKey][date]
+            }
+            modified = true
+            removedFromAnyMonth = true
+          }
+          
+          // Check and remove from secondary
+          if (assignment.secondary === id) {
+            delete updatedSchedules[monthKey][date].secondary
+            modified = true
+            removedFromAnyMonth = true
+          }
+        })
+      })
+      
+      if (removedFromAnyMonth) {
+        const teamRef = doc(db, 'teams', selectedTeamId)
+        updateDoc(teamRef, {
+          schedules: updatedSchedules,
+        }).catch(err => console.error('Error removing user from schedules:', err))
       }
-    })
-    updateTeamSchedule(newSchedule)
+    }
     
     // Log activity
     if (selectedTeamId && user && removedUser) {
@@ -175,14 +219,21 @@ export default function Home() {
       return
     }
     
-    if (confirm('Are you sure you want to clear all users, schedule, and notes? This will affect all team members!')) {
+    if (confirm('Are you sure you want to clear all users, ALL MONTH schedules, and notes? This will affect all team members!')) {
       updateTeamUsers([])
-      updateTeamSchedule({})
-      updateTeamNotes({})
+      // Clear all monthly schedules and notes through Firestore
+      if (selectedTeamId) {
+        const teamRef = doc(db, 'teams', selectedTeamId)
+        updateDoc(teamRef, {
+          users: [],
+          schedules: {},
+          monthlyNotes: {},
+        }).catch(err => console.error('Error clearing data:', err))
+      }
       
       // Log activity
       if (selectedTeamId && user) {
-        logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'data_cleared', 'Cleared all users, schedule, and notes')
+        logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'data_cleared', 'Cleared all users, schedules (all months), and notes')
       }
     }
   }
@@ -194,8 +245,15 @@ export default function Home() {
     }
     
     updateTeamUsers(importedUsers)
-    updateTeamSchedule({}) // Clear schedule when importing new users
-    updateTeamNotes({}) // Clear notes when importing new users
+    // Clear all monthly schedules and notes through Firestore
+    if (selectedTeamId) {
+      const teamRef = doc(db, 'teams', selectedTeamId)
+      updateDoc(teamRef, {
+        users: importedUsers,
+        schedules: {},
+        monthlyNotes: {},
+      }).catch(err => console.error('Error importing users:', err))
+    }
     
     // Log activity
     if (selectedTeamId && user) {
@@ -204,6 +262,12 @@ export default function Home() {
   }
 
   const handleGenerateSchedule = () => {
+    // Check if month is locked
+    if (isCurrentMonthLocked) {
+      alert('🔒 This month is locked! Only admins can unlock it to make changes.')
+      return
+    }
+    
     // All team members can generate schedules
     if (users.length === 0) {
       alert('Please add users first!')
@@ -219,36 +283,78 @@ export default function Home() {
   }
 
   const handleResetSchedule = () => {
+    // Check if month is locked
+    if (isCurrentMonthLocked) {
+      alert('🔒 This month is locked! Only admins can unlock it to make changes.')
+      return
+    }
+    
     // All team members can reset schedules
-    if (confirm('Reset schedule and notes? This will affect all team members!')) {
-      updateTeamSchedule({})
-      updateTeamNotes({})
+    if (confirm('Reset schedule and notes for the CURRENT MONTH? This will affect all team members!')) {
+      updateTeamSchedule({}) // This will clear only current month's schedule
+      updateTeamNotes({}) // This will clear only current month's notes
       
       // Log activity
       if (selectedTeamId && user) {
-        logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'schedule_reset', 'Reset schedule and notes')
+        const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+        logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'schedule_reset', `Reset schedule and notes for ${monthKey}`)
       }
     }
   }
 
-  const handleAssignUser = (date: string, userId: string | null) => {
+  const handleAssignUser = (date: string, userId: string | null, isSecondary: boolean = false) => {
+    // Check if month is locked
+    if (isCurrentMonthLocked) {
+      alert('🔒 This month is locked! Only admins can unlock it to make changes.')
+      return
+    }
+    
     // All team members can assign users to schedule
     const newSchedule = { ...schedule }
-    if (userId === null) {
-      delete newSchedule[date]
-    } else {
-      newSchedule[date] = userId
+    
+    if (!newSchedule[date]) {
+      newSchedule[date] = { primary: '' }
     }
+    
+    if (isSecondary) {
+      // Assigning secondary
+      if (userId === null) {
+        delete newSchedule[date].secondary
+      } else {
+        newSchedule[date] = { ...newSchedule[date], secondary: userId }
+      }
+    } else {
+      // Assigning primary
+      if (userId === null) {
+        // If removing primary and there's a secondary, remove the whole assignment
+        delete newSchedule[date]
+      } else {
+        newSchedule[date] = { ...newSchedule[date], primary: userId }
+      }
+    }
+    
+    // Clean up empty assignments
+    if (newSchedule[date] && !newSchedule[date].primary && !newSchedule[date].secondary) {
+      delete newSchedule[date]
+    }
+    
     updateTeamSchedule(newSchedule)
     
     // Log activity (optional - can be noisy)
     // if (selectedTeamId && user) {
     //   const assignedUser = users.find(u => u.id === userId)
-    //   logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'user_assigned', `Assigned ${assignedUser?.name || 'user'} to ${date}`)
+    //   const role = isSecondary ? 'secondary' : 'primary'
+    //   logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'user_assigned', `Assigned ${assignedUser?.name || 'user'} as ${role} to ${date}`)
     // }
   }
 
   const handleUpdateNote = (date: string, note: string) => {
+    // Check if month is locked
+    if (isCurrentMonthLocked) {
+      alert('🔒 This month is locked! Only admins can unlock it to make changes.')
+      return
+    }
+    
     const newNotes = { ...notes }
     if (note.trim() === '') {
       delete newNotes[date]
@@ -258,17 +364,58 @@ export default function Home() {
     updateTeamNotes(newNotes)
   }
 
-  const handleSettingsChange = (newSettings: WeightSettingsType) => {
+  const handleLockMonth = async () => {
+    if (!isAdmin) {
+      alert('⚠️ Only admins can lock/unlock months')
+      return
+    }
+    
+    const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+    
+    if (confirm(`Lock this month (${monthKey})? Nobody will be able to edit the schedule until you unlock it.`)) {
+      await lockMonth(currentDate)
+      
+      // Log activity
+      if (selectedTeamId && user) {
+        logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'month_locked', `Locked month ${monthKey}`)
+      }
+    }
+  }
+
+  const handleUnlockMonth = async () => {
+    if (!isAdmin) {
+      alert('⚠️ Only admins can lock/unlock months')
+      return
+    }
+    
+    const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+    
+    if (confirm(`Unlock this month (${monthKey})? Team members will be able to edit the schedule again.`)) {
+      await unlockMonth(currentDate)
+      
+      // Log activity
+      if (selectedTeamId && user) {
+        logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'month_unlocked', `Unlocked month ${monthKey}`)
+      }
+    }
+  }
+
+  const handleSettingsChange = (newSettings: WeightSettingsType, isMonthSpecific: boolean) => {
     if (!isAdmin) {
       alert('⚠️ Only admins can change settings')
       return
     }
     
-    updateTeamSettings(newSettings)
+    // If isMonthSpecific is true, save for current month only
+    // Otherwise, save as default/global settings
+    const targetDate = isMonthSpecific ? currentDate : undefined
+    updateTeamSettings(newSettings, targetDate)
     
     // Log activity
     if (selectedTeamId && user) {
-      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'settings_updated', 'Updated weight settings')
+      const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+      const scope = isMonthSpecific ? ` for ${monthKey}` : ' (default for all months)'
+      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'settings_updated', `Updated weight settings${scope}`)
     }
   }
 
@@ -453,11 +600,15 @@ export default function Home() {
                 notes={notes}
                 currentDate={currentDate}
                 settings={weightSettings}
+                isLocked={isCurrentMonthLocked}
+                isAdmin={isAdmin}
                 onDateChange={setCurrentDate}
                 onAssignUser={handleAssignUser}
                 onUpdateNote={handleUpdateNote}
                 onGenerateSchedule={handleGenerateSchedule}
                 onResetSchedule={handleResetSchedule}
+                onLockMonth={handleLockMonth}
+                onUnlockMonth={handleUnlockMonth}
               />
             </div>
           ) : (
@@ -477,7 +628,11 @@ export default function Home() {
       </div>
 
       {/* Settings Button (Floating) */}
-      <Settings settings={weightSettings} onSettingsChange={handleSettingsChange} />
+      <Settings 
+        settings={weightSettings} 
+        currentMonth={format(currentDate, 'MMMM yyyy', { locale: tr })}
+        onSettingsChange={handleSettingsChange} 
+      />
       
       {/* Statistics Button (Floating) */}
       <Statistics 
@@ -508,3 +663,4 @@ export default function Home() {
     </main>
   )
 }
+

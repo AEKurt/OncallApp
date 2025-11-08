@@ -3,19 +3,36 @@
 import { useEffect, useState } from 'react'
 import { doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, DocumentData, collection, addDoc, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { User, Schedule, DayNotes, TeamMember, ActivityLog } from '@/types'
+import { User, DayNotes, MonthlySchedules, MonthlyNotes, ExtendedSchedule, LockedMonths, MonthlyWeightSettings, TeamMember, ActivityLog } from '@/types'
 import { WeightSettings } from '@/lib/scheduler'
 
-export function useTeamData(teamId: string | null) {
+// Helper to get month key from date (YYYY-MM format)
+export function getMonthKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
+export function useTeamData(teamId: string | null, currentDate: Date = new Date()) {
   const [users, setUsers] = useState<User[]>([])
-  const [schedule, setSchedule] = useState<Schedule>({})
-  const [notes, setNotes] = useState<DayNotes>({})
-  const [settings, setSettings] = useState<WeightSettings | null>(null)
+  const [monthlySchedules, setMonthlySchedules] = useState<MonthlySchedules>({})
+  const [monthlyNotes, setMonthlyNotes] = useState<MonthlyNotes>({})
+  const [lockedMonths, setLockedMonths] = useState<LockedMonths>({})
+  const [monthlySettings, setMonthlySettings] = useState<MonthlyWeightSettings>({})
+  const [defaultSettings, setDefaultSettings] = useState<WeightSettings | null>(null)
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [teamName, setTeamName] = useState<string>('')
   const [createdBy, setCreatedBy] = useState<string>('')
   const [inviteCode, setInviteCode] = useState<string>('')
   const [loading, setLoading] = useState(true)
+
+  // Get current month's schedule, notes, and settings
+  const monthKey = getMonthKey(currentDate)
+  const schedule = monthlySchedules[monthKey] || {}
+  const notes = monthlyNotes[monthKey] || {}
+  const isCurrentMonthLocked = lockedMonths[monthKey] || false
+  // Use month-specific settings if available, otherwise fall back to default
+  const settings = monthlySettings[monthKey] || defaultSettings
 
   useEffect(() => {
     if (!teamId) {
@@ -31,9 +48,71 @@ export function useTeamData(teamId: string | null) {
         if (snapshot.exists()) {
           const data = snapshot.data() as DocumentData
         setUsers(data.users || [])
-        setSchedule(data.schedule || {})
-        setNotes(data.notes || {})
-        setSettings(data.settings || null)
+        
+        // Handle migration from old structure to new monthly structure
+        if (data.schedules) {
+          // Check if schedules use new ExtendedSchedule format or old string format
+          const schedules = data.schedules || {}
+          const migratedSchedules: MonthlySchedules = {}
+          
+          Object.keys(schedules).forEach(monthKey => {
+            migratedSchedules[monthKey] = {}
+            const monthSchedule = schedules[monthKey]
+            
+            Object.keys(monthSchedule).forEach(dateStr => {
+              const assignment = monthSchedule[dateStr]
+              
+              // Check if already in new format (object with primary/secondary)
+              if (typeof assignment === 'object' && assignment !== null && 'primary' in assignment) {
+                migratedSchedules[monthKey][dateStr] = assignment
+              } else if (typeof assignment === 'string') {
+                // Migrate from old string format to new object format
+                migratedSchedules[monthKey][dateStr] = { primary: assignment }
+              }
+            })
+          })
+          
+          setMonthlySchedules(migratedSchedules)
+        } else if (data.schedule) {
+          // Migrate old schedule to new format
+          const migratedSchedules: MonthlySchedules = {}
+          Object.keys(data.schedule || {}).forEach(dateStr => {
+            const date = new Date(dateStr)
+            const key = getMonthKey(date)
+            if (!migratedSchedules[key]) {
+              migratedSchedules[key] = {}
+            }
+            // Convert old string format to new object format
+            const userId = data.schedule[dateStr]
+            migratedSchedules[key][dateStr] = typeof userId === 'string' ? { primary: userId } : userId
+          })
+          setMonthlySchedules(migratedSchedules)
+        } else {
+          setMonthlySchedules({})
+        }
+
+        // Handle migration from old notes to new monthly notes
+        if (data.monthlyNotes) {
+          setMonthlyNotes(data.monthlyNotes || {})
+        } else if (data.notes) {
+          // Migrate old notes to new format
+          const migratedNotes: MonthlyNotes = {}
+          Object.keys(data.notes || {}).forEach(dateStr => {
+            const date = new Date(dateStr)
+            const key = getMonthKey(date)
+            if (!migratedNotes[key]) {
+              migratedNotes[key] = {}
+            }
+            migratedNotes[key][dateStr] = data.notes[dateStr]
+          })
+          setMonthlyNotes(migratedNotes)
+        } else {
+          setMonthlyNotes({})
+        }
+
+        setLockedMonths(data.lockedMonths || {})
+        setMonthlySettings(data.monthlySettings || {})
+        setDefaultSettings(data.settings || null)
         setTeamMembers(data.teamMembers || [])
         setTeamName(data.name || '')
         setCreatedBy(data.createdBy || '')
@@ -56,29 +135,89 @@ export function useTeamData(teamId: string | null) {
     await updateDoc(teamRef, { users: newUsers })
   }
 
-  const updateTeamSchedule = async (newSchedule: Schedule) => {
+  const updateTeamSchedule = async (newSchedule: ExtendedSchedule, targetDate: Date = currentDate) => {
     if (!teamId) return
     const teamRef = doc(db, 'teams', teamId)
-    await updateDoc(teamRef, { schedule: newSchedule })
+    const key = getMonthKey(targetDate)
+    
+    // Update only the specific month
+    const updatedMonthlySchedules = {
+      ...monthlySchedules,
+      [key]: newSchedule
+    }
+    
+    await updateDoc(teamRef, { schedules: updatedMonthlySchedules })
   }
 
-  const updateTeamNotes = async (newNotes: DayNotes) => {
+  const updateTeamNotes = async (newNotes: DayNotes, targetDate: Date = currentDate) => {
     if (!teamId) return
     const teamRef = doc(db, 'teams', teamId)
-    await updateDoc(teamRef, { notes: newNotes })
+    const key = getMonthKey(targetDate)
+    
+    // Update only the specific month
+    const updatedMonthlyNotes = {
+      ...monthlyNotes,
+      [key]: newNotes
+    }
+    
+    await updateDoc(teamRef, { monthlyNotes: updatedMonthlyNotes })
   }
 
-  const updateTeamSettings = async (newSettings: WeightSettings) => {
+  const updateTeamSettings = async (newSettings: WeightSettings, targetDate?: Date) => {
     if (!teamId) return
     const teamRef = doc(db, 'teams', teamId)
-    await updateDoc(teamRef, { settings: newSettings })
+    
+    // If targetDate is provided, update monthly settings for that month
+    if (targetDate) {
+      const key = getMonthKey(targetDate)
+      const updatedMonthlySettings = {
+        ...monthlySettings,
+        [key]: newSettings
+      }
+      await updateDoc(teamRef, { monthlySettings: updatedMonthlySettings })
+    } else {
+      // Update default/global settings
+      await updateDoc(teamRef, { settings: newSettings })
+    }
+  }
+
+  const lockMonth = async (targetDate: Date = currentDate) => {
+    if (!teamId) return
+    const teamRef = doc(db, 'teams', teamId)
+    const key = getMonthKey(targetDate)
+    
+    const updatedLockedMonths = {
+      ...lockedMonths,
+      [key]: true
+    }
+    
+    await updateDoc(teamRef, { lockedMonths: updatedLockedMonths })
+  }
+
+  const unlockMonth = async (targetDate: Date = currentDate) => {
+    if (!teamId) return
+    const teamRef = doc(db, 'teams', teamId)
+    const key = getMonthKey(targetDate)
+    
+    const updatedLockedMonths = {
+      ...lockedMonths,
+      [key]: false
+    }
+    
+    await updateDoc(teamRef, { lockedMonths: updatedLockedMonths })
   }
 
   return {
     users,
-    schedule,
-    notes,
-    settings,
+    schedule, // Current month's schedule
+    notes, // Current month's notes
+    settings, // Current month's settings (or default)
+    isCurrentMonthLocked, // Is current month locked?
+    monthlySchedules, // All monthly schedules
+    monthlyNotes, // All monthly notes
+    monthlySettings, // All monthly settings
+    defaultSettings, // Default/global settings
+    lockedMonths, // All locked months
     teamMembers,
     teamName,
     createdBy,
@@ -88,6 +227,8 @@ export function useTeamData(teamId: string | null) {
     updateTeamSchedule,
     updateTeamNotes,
     updateTeamSettings,
+    lockMonth,
+    unlockMonth,
   }
 }
 
@@ -124,8 +265,10 @@ export async function createTeam(userId: string, teamName: string, userEmail: st
     members: [userId],
     teamMembers: [adminMember],
     users: [],
-    schedule: {},
-    notes: {},
+    schedules: {}, // Changed from schedule to schedules
+    monthlyNotes: {}, // Changed from notes to monthlyNotes
+    lockedMonths: {}, // Initialize locked months
+    monthlySettings: {}, // Initialize monthly settings
     settings: {
       weekdayWeight: 1.0,
       weekendWeight: 1.5,

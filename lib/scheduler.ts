@@ -1,4 +1,4 @@
-import { User, Schedule } from '@/types'
+import { User, ExtendedSchedule } from '@/types'
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -66,39 +66,67 @@ export function generateSchedule(
   users: User[], 
   currentDate: Date,
   settings: WeightSettings = DEFAULT_WEIGHTS
-): Schedule {
+): ExtendedSchedule {
   if (users.length === 0) return {}
 
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
-  const schedule: Schedule = {}
-  const userWeights: { [userId: string]: number } = {}
+  const schedule: ExtendedSchedule = {}
+  const primaryWeights: { [userId: string]: number } = {}
+  const secondaryWeights: { [userId: string]: number } = {}
   
   // Initialize user weights
   users.forEach(user => {
-    userWeights[user.id] = 0
+    primaryWeights[user.id] = 0
+    secondaryWeights[user.id] = 0
   })
 
-  // For each day in the month, assign the user with lowest weight
+  // For each day in the month, assign primary and secondary users
   daysInMonth.forEach(date => {
     const dateString = format(date, 'yyyy-MM-dd')
     const dayWeight = getDayWeight(date, settings)
     
-    // Find user with minimum weight
-    let minWeight = Infinity
-    let selectedUserId = users[0].id
+    // Find user with minimum primary weight for primary assignment
+    let minPrimaryWeight = Infinity
+    let selectedPrimaryId = users[0].id
     
     users.forEach(user => {
-      if (userWeights[user.id] < minWeight) {
-        minWeight = userWeights[user.id]
-        selectedUserId = user.id
+      if (primaryWeights[user.id] < minPrimaryWeight) {
+        minPrimaryWeight = primaryWeights[user.id]
+        selectedPrimaryId = user.id
       }
     })
     
-    schedule[dateString] = selectedUserId
-    userWeights[selectedUserId] += dayWeight
+    // Find user with minimum secondary weight for secondary assignment
+    // Make sure it's not the same as primary
+    let minSecondaryWeight = Infinity
+    let selectedSecondaryId: string | undefined = undefined
+    
+    if (users.length > 1) {
+      users.forEach(user => {
+        // Skip the primary user
+        if (user.id === selectedPrimaryId) return
+        
+        if (secondaryWeights[user.id] < minSecondaryWeight) {
+          minSecondaryWeight = secondaryWeights[user.id]
+          selectedSecondaryId = user.id
+        }
+      })
+    }
+    
+    // Assign to schedule
+    schedule[dateString] = {
+      primary: selectedPrimaryId,
+      ...(selectedSecondaryId ? { secondary: selectedSecondaryId } : {})
+    }
+    
+    // Update weights (secondary gets less weight than primary)
+    primaryWeights[selectedPrimaryId] += dayWeight
+    if (selectedSecondaryId) {
+      secondaryWeights[selectedSecondaryId] += dayWeight * 0.5 // Secondary gets 50% weight
+    }
   })
 
   return schedule
@@ -106,14 +134,14 @@ export function generateSchedule(
 
 export function calculateUserWeights(
   users: User[], 
-  schedule: Schedule, 
+  schedule: ExtendedSchedule, 
   currentDate: Date,
   settings: WeightSettings = DEFAULT_WEIGHTS
-): { [userId: string]: number } {
-  const weights: { [userId: string]: number } = {}
+): { [userId: string]: { primary: number; secondary: number; total: number } } {
+  const weights: { [userId: string]: { primary: number; secondary: number; total: number } } = {}
   
   users.forEach(user => {
-    weights[user.id] = 0
+    weights[user.id] = { primary: 0, secondary: 0, total: 0 }
   })
 
   const monthStart = startOfMonth(currentDate)
@@ -122,10 +150,22 @@ export function calculateUserWeights(
 
   daysInMonth.forEach(date => {
     const dateString = format(date, 'yyyy-MM-dd')
-    const userId = schedule[dateString]
-    if (userId && weights[userId] !== undefined) {
+    const assignment = schedule[dateString]
+    if (assignment) {
       const dayWeight = getDayWeight(date, settings)
-      weights[userId] += dayWeight
+      
+      // Add primary weight
+      if (assignment.primary && weights[assignment.primary]) {
+        weights[assignment.primary].primary += dayWeight
+        weights[assignment.primary].total += dayWeight
+      }
+      
+      // Add secondary weight (counts as 50% of primary)
+      if (assignment.secondary && weights[assignment.secondary]) {
+        const secondaryWeight = dayWeight * 0.5
+        weights[assignment.secondary].secondary += secondaryWeight
+        weights[assignment.secondary].total += secondaryWeight
+      }
     }
   })
 
