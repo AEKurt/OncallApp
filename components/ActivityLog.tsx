@@ -65,6 +65,12 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
         return '🗑️'
       case 'users_imported':
         return '📋'
+      case 'comment_added':
+        return '💬'
+      case 'comment_edited':
+        return '✏️'
+      case 'comment_deleted':
+        return '🗑️'
       default:
         return '📝'
     }
@@ -77,6 +83,7 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
       case 'user_added':
       case 'users_synced':
       case 'schedule_generated':
+      case 'comment_added':
         return 'text-green-500'
       case 'team_deleted':
       case 'member_left':
@@ -84,11 +91,13 @@ export function ActivityLogComponent({ teamId }: ActivityLogProps) {
       case 'user_removed':
       case 'schedule_reset':
       case 'data_cleared':
+      case 'comment_deleted':
         return 'text-red-500'
       case 'settings_updated':
       case 'data_imported':
       case 'users_imported':
       case 'invite_code_regenerated':
+      case 'comment_edited':
         return 'text-blue-500'
       default:
         return 'text-muted-foreground'

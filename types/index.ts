@@ -19,6 +19,23 @@ export interface ExtendedSchedule {
   [date: string]: ScheduleAssignment // date (YYYY-MM-DD) -> assignment
 }
 
+// Comment/Note structure with user info
+export interface NoteComment {
+  id: string // Unique comment ID
+  userId: string
+  userName: string
+  userPhotoURL?: string
+  text: string
+  timestamp: string // ISO string
+  editedAt?: string // ISO string if edited
+}
+
+// Notes for a single day (array of comments)
+export interface DayNoteComments {
+  [date: string]: NoteComment[] // date (YYYY-MM-DD) -> array of comments
+}
+
+// Legacy: Simple string notes (for migration)
 export interface DayNotes {
   [date: string]: string // date (YYYY-MM-DD) -> note
 }
@@ -28,9 +45,9 @@ export interface MonthlySchedules {
   [monthKey: string]: ExtendedSchedule // monthKey format: "YYYY-MM"
 }
 
-// Monthly notes: { "2025-01": { "2025-01-15": "note text" }, "2025-02": { ... } }
+// Monthly notes: { "2025-01": { "2025-01-15": [comments...] }, "2025-02": { ... } }
 export interface MonthlyNotes {
-  [monthKey: string]: DayNotes // monthKey format: "YYYY-MM"
+  [monthKey: string]: DayNoteComments // monthKey format: "YYYY-MM"
 }
 
 // Locked months: { "2025-01": true, "2025-02": false }
@@ -38,9 +55,24 @@ export interface LockedMonths {
   [monthKey: string]: boolean // monthKey format: "YYYY-MM"
 }
 
-// Monthly weight settings: { "2025-01": { weekdayWeight: 1.0, ... }, "2025-02": { ... } }
+// Strategy configuration for scheduling
+export interface StrategyConfig {
+  strategy: 'balanced' | 'consecutive' | 'round-robin' | 'random' | 'minimize-weekends'
+  consecutiveDays?: number // For consecutive strategy (default: 7)
+  seed?: number // For random strategy
+}
+
+// Monthly settings including weights and strategy
+export interface MonthSettings {
+  weekdayWeight?: number
+  weekendWeight?: number
+  holidayWeight?: number
+  strategyConfig?: StrategyConfig
+}
+
+// Monthly weight settings: { "2025-01": { weekdayWeight: 1.0, strategyConfig: {...} }, "2025-02": { ... } }
 export interface MonthlyWeightSettings {
-  [monthKey: string]: any // monthKey format: "YYYY-MM", value is WeightSettings
+  [monthKey: string]: MonthSettings // monthKey format: "YYYY-MM"
 }
 
 export interface DayInfo {
@@ -73,8 +105,8 @@ export interface Team {
   schedules: MonthlySchedules // Changed from schedule to schedules (monthly)
   notes: MonthlyNotes // Changed to monthly notes
   lockedMonths: LockedMonths // Months that are locked by admin
-  settings: any // Default/global settings
-  monthlySettings: MonthlyWeightSettings // Per-month weight settings
+  settings: MonthSettings // Default/global settings (includes weights and strategy)
+  monthlySettings: MonthlyWeightSettings // Per-month settings (weights and strategy)
 }
 
 export interface ActivityLog {

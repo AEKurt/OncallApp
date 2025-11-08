@@ -8,14 +8,14 @@ import { tr } from 'date-fns/locale'
 import { Calendar } from '@/components/Calendar'
 import { UserManagement } from '@/components/UserManagement'
 import { Statistics } from '@/components/Statistics'
-import { Settings, WeightSettings as WeightSettingsType } from '@/components/Settings'
+import { Settings } from '@/components/Settings'
 import { LoginPage } from '@/components/LoginPage'
 import { TeamSelection } from '@/components/TeamSelection'
 import { TeamMembers } from '@/components/TeamMembers'
 import { ActivityLogComponent } from '@/components/ActivityLog'
 import { ThemeToggleCompact } from '@/components/ThemeToggle'
-import { generateSchedule, DEFAULT_WEIGHTS } from '@/lib/scheduler'
-import { User, ExtendedSchedule } from '@/types'
+import { generateSchedule } from '@/lib/scheduler'
+import { User, MonthSettings, NoteComment, DayNoteComments } from '@/types'
 import { Users, Calendar as CalendarIcon, Zap, LogOut, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTeamData, logActivity } from '@/hooks/useTeamData'
@@ -32,11 +32,6 @@ export default function Home() {
     notes,
     settings,
     isCurrentMonthLocked,
-    monthlySchedules,
-    monthlyNotes,
-    monthlySettings,
-    defaultSettings,
-    lockedMonths,
     teamMembers,
     teamName,
     createdBy,
@@ -50,7 +45,7 @@ export default function Home() {
     unlockMonth,
   } = useTeamData(selectedTeamId, currentDate) // Pass currentDate to hook
 
-  const weightSettings = settings || DEFAULT_WEIGHTS
+  // settings is now MonthSettings (includes weights and strategyConfig)
   
   // Check if current user is admin
   const currentUserRole = teamMembers.find(m => m.uid === user?.uid)?.role || 'member'
@@ -273,12 +268,24 @@ export default function Home() {
       alert('Please add users first!')
       return
     }
-    const newSchedule = generateSchedule(users, currentDate, weightSettings)
+    
+    // Pass the strategy configuration along with weight settings
+    const newSchedule = generateSchedule(
+      users, 
+      currentDate, 
+      {
+        weekdayWeight: settings.weekdayWeight || 1.0,
+        weekendWeight: settings.weekendWeight || 1.5,
+        holidayWeight: settings.holidayWeight || 2.0
+      },
+      settings.strategyConfig || { strategy: 'balanced', consecutiveDays: 7 }
+    )
     updateTeamSchedule(newSchedule)
     
     // Log activity
     if (selectedTeamId && user) {
-      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'schedule_generated', `Generated auto schedule`)
+      const strategyName = settings.strategyConfig?.strategy || 'balanced'
+      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'schedule_generated', `Generated auto schedule using ${strategyName} strategy`)
     }
   }
 
@@ -348,20 +355,80 @@ export default function Home() {
     // }
   }
 
-  const handleUpdateNote = (date: string, note: string) => {
+  const handleAddComment = (date: string, text: string) => {
     // Check if month is locked
     if (isCurrentMonthLocked) {
       alert('🔒 This month is locked! Only admins can unlock it to make changes.')
       return
     }
     
-    const newNotes = { ...notes }
-    if (note.trim() === '') {
-      delete newNotes[date]
-    } else {
-      newNotes[date] = note
+    if (!user) return
+    
+    const newComment: NoteComment = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userId: user.uid,
+      userName: user.displayName || 'Unknown User',
+      userPhotoURL: user.photoURL || undefined,
+      text,
+      timestamp: new Date().toISOString(),
     }
+    
+    const newNotes: DayNoteComments = { ...notes }
+    if (!newNotes[date]) {
+      newNotes[date] = []
+    }
+    newNotes[date] = [...newNotes[date], newComment]
     updateTeamNotes(newNotes)
+    
+    // Log activity
+    if (selectedTeamId && user) {
+      logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'comment_added', `Added comment on ${date}`)
+    }
+  }
+
+  const handleEditComment = (date: string, commentId: string, newText: string) => {
+    // Check if month is locked
+    if (isCurrentMonthLocked) {
+      alert('🔒 This month is locked! Only admins can unlock it to make changes.')
+      return
+    }
+    
+    const newNotes: DayNoteComments = { ...notes }
+    if (newNotes[date]) {
+      newNotes[date] = newNotes[date].map(comment =>
+        comment.id === commentId
+          ? { ...comment, text: newText, editedAt: new Date().toISOString() }
+          : comment
+      )
+      updateTeamNotes(newNotes)
+      
+      // Log activity
+      if (selectedTeamId && user) {
+        logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'comment_edited', `Edited comment on ${date}`)
+      }
+    }
+  }
+
+  const handleDeleteComment = (date: string, commentId: string) => {
+    // Check if month is locked
+    if (isCurrentMonthLocked) {
+      alert('🔒 This month is locked! Only admins can unlock it to make changes.')
+      return
+    }
+    
+    const newNotes: DayNoteComments = { ...notes }
+    if (newNotes[date]) {
+      newNotes[date] = newNotes[date].filter(comment => comment.id !== commentId)
+      if (newNotes[date].length === 0) {
+        delete newNotes[date]
+      }
+      updateTeamNotes(newNotes)
+      
+      // Log activity
+      if (selectedTeamId && user) {
+        logActivity(selectedTeamId, user.uid, user.displayName || 'Unknown', 'comment_deleted', `Deleted comment on ${date}`)
+      }
+    }
   }
 
   const handleLockMonth = async () => {
@@ -400,7 +467,7 @@ export default function Home() {
     }
   }
 
-  const handleSettingsChange = (newSettings: WeightSettingsType, isMonthSpecific: boolean) => {
+  const handleSettingsChange = (newSettings: MonthSettings, isMonthSpecific: boolean) => {
     if (!isAdmin) {
       alert('⚠️ Only admins can change settings')
       return
@@ -599,12 +666,15 @@ export default function Home() {
                 schedule={schedule}
                 notes={notes}
                 currentDate={currentDate}
-                settings={weightSettings}
+                settings={settings}
                 isLocked={isCurrentMonthLocked}
                 isAdmin={isAdmin}
+                currentUser={user ? { uid: user.uid, displayName: user.displayName || 'Unknown', photoURL: user.photoURL || undefined } : undefined}
                 onDateChange={setCurrentDate}
                 onAssignUser={handleAssignUser}
-                onUpdateNote={handleUpdateNote}
+                onAddComment={handleAddComment}
+                onEditComment={handleEditComment}
+                onDeleteComment={handleDeleteComment}
                 onGenerateSchedule={handleGenerateSchedule}
                 onResetSchedule={handleResetSchedule}
                 onLockMonth={handleLockMonth}
@@ -629,7 +699,7 @@ export default function Home() {
 
       {/* Settings Button (Floating) */}
       <Settings 
-        settings={weightSettings} 
+        settings={settings} 
         currentMonth={format(currentDate, 'MMMM yyyy', { locale: tr })}
         onSettingsChange={handleSettingsChange} 
       />
@@ -639,7 +709,7 @@ export default function Home() {
         users={users} 
         schedule={schedule} 
         currentDate={currentDate}
-        settings={weightSettings}
+        settings={settings}
       />
       
       {/* Team Members Button (Floating) */}

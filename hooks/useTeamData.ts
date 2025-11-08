@@ -31,8 +31,13 @@ export function useTeamData(teamId: string | null, currentDate: Date = new Date(
   const schedule = monthlySchedules[monthKey] || {}
   const notes = monthlyNotes[monthKey] || {}
   const isCurrentMonthLocked = lockedMonths[monthKey] || false
-  // Use month-specific settings if available, otherwise fall back to default
-  const settings = monthlySettings[monthKey] || defaultSettings
+  // Use month-specific settings if available, otherwise fall back to default, then to hardcoded default
+  const settings = monthlySettings[monthKey] || defaultSettings || { 
+    weekdayWeight: 1.0, 
+    weekendWeight: 1.5, 
+    holidayWeight: 2.0,
+    strategyConfig: { strategy: 'balanced' as const, consecutiveDays: 7 }
+  }
 
   useEffect(() => {
     if (!teamId) {

@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { User, DayNotes, ExtendedSchedule } from '@/types'
+import { User, DayNoteComments, ExtendedSchedule, MonthSettings } from '@/types'
 import { format, isSameMonth, isToday } from 'date-fns'
 import { tr } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Wand2, Zap, RotateCcw, StickyNote, Plus, UserPlus, X, Lock, Unlock } from 'lucide-react'
-import { getCalendarDays, getDayWeight, WeightSettings, DEFAULT_WEIGHTS, isPublicHoliday, getHolidayName } from '@/lib/scheduler'
+import { ChevronLeft, ChevronRight, Wand2, Zap, RotateCcw, StickyNote, Plus, UserPlus, X, Lock, Unlock, MessageSquare } from 'lucide-react'
+import { getCalendarDays, getDayWeight, isPublicHoliday, getHolidayName } from '@/lib/scheduler'
 import {
   Dialog,
   DialogContent,
@@ -13,19 +13,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { RichTextEditor } from '@/components/RichTextEditor'
+import { DayNotesThread } from './DayNotesThread'
 
 interface CalendarProps {
   users: User[]
   schedule: ExtendedSchedule
-  notes: DayNotes
+  notes: DayNoteComments
   currentDate: Date
-  settings?: WeightSettings
+  settings?: MonthSettings
   isLocked?: boolean
   isAdmin?: boolean
+  currentUser?: {
+    uid: string
+    displayName: string
+    photoURL?: string
+  }
   onDateChange: (date: Date) => void
   onAssignUser: (date: string, userId: string | null, isSecondary?: boolean) => void
-  onUpdateNote: (date: string, note: string) => void
+  onAddComment: (date: string, text: string) => void
+  onEditComment: (date: string, commentId: string, newText: string) => void
+  onDeleteComment: (date: string, commentId: string) => void
   onGenerateSchedule: () => void
   onResetSchedule: () => void
   onLockMonth?: () => void
@@ -37,29 +44,30 @@ export function Calendar({
   schedule,
   notes,
   currentDate,
-  settings = DEFAULT_WEIGHTS,
+  settings = { weekdayWeight: 1.0, weekendWeight: 1.5, holidayWeight: 2.0 },
   isLocked = false,
   isAdmin = false,
+  currentUser,
   onDateChange,
   onAssignUser,
-  onUpdateNote,
+  onAddComment,
+  onEditComment,
+  onDeleteComment,
   onGenerateSchedule,
   onResetSchedule,
   onLockMonth,
   onUnlockMonth,
 }: CalendarProps) {
   const calendarDays = getCalendarDays(currentDate)
-  const [editorOpen, setEditorOpen] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
-  const [selectedNote, setSelectedNote] = useState('')
   const [userSelectOpen, setUserSelectOpen] = useState(false)
   const [selectedDateForUser, setSelectedDateForUser] = useState('')
   const [isSelectingSecondary, setIsSelectingSecondary] = useState(false)
 
-  const openNoteEditor = (dateString: string, note: string) => {
+  const openNotesThread = (dateString: string) => {
     setSelectedDate(dateString)
-    setSelectedNote(note)
-    setEditorOpen(true)
+    setNotesOpen(true)
   }
 
   const openUserSelect = (dateString: string, forSecondary: boolean = false) => {
@@ -72,10 +80,6 @@ export function Calendar({
     onAssignUser(selectedDateForUser, userId, isSelectingSecondary)
     setUserSelectOpen(false)
     setIsSelectingSecondary(false)
-  }
-
-  const handleNoteSave = (content: string) => {
-    onUpdateNote(selectedDate, content)
   }
 
   const prevMonth = () => {
@@ -211,7 +215,8 @@ export function Calendar({
             const assignment = schedule[dateString]
             const primaryUser = assignment?.primary ? getUserById(assignment.primary) : null
             const secondaryUser = assignment?.secondary ? getUserById(assignment.secondary) : null
-            const dayNote = notes[dateString] || ''
+                const dayNote = notes[dateString] || []
+                const hasComments = dayNote.length > 0
             const isCurrentMonth = isSameMonth(date, currentDate)
             const isCurrentDay = isToday(date)
             const dayWeight = getDayWeight(date, settings)
@@ -247,8 +252,8 @@ export function Calendar({
                       {format(date, 'd')}
                     </span>
                     <div className="flex items-center gap-1">
-                      {dayNote && (
-                        <StickyNote className="w-4 h-4 text-cyber-yellow" />
+                      {hasComments && (
+                        <MessageSquare className="w-4 h-4 text-cyber-yellow fill-cyber-yellow/30" />
                       )}
                       {isHoliday && (
                         <span className="text-xs bg-cyber-pink/30 text-cyber-pink px-2 py-1 rounded-full border border-cyber-pink/50 font-mono font-bold">
@@ -330,26 +335,27 @@ export function Calendar({
                         )}
                       </button>
 
-                      {/* Note Button */}
+                      {/* Comments Button */}
                       <button
-                        onClick={() => openNoteEditor(dateString, dayNote)}
+                        onClick={() => openNotesThread(dateString)}
                         className={`group w-full px-3 py-2.5 rounded-lg border-2 transition-all font-bold inline-flex items-center justify-center gap-2 relative overflow-hidden ${
-                          dayNote
+                          hasComments
                             ? 'bg-gradient-to-r from-cyber-yellow/20 to-amber-500/20 border-cyber-yellow/60 text-cyber-yellow hover:border-cyber-yellow hover:shadow-[0_0_15px_rgba(255,190,11,0.4)]'
                             : 'bg-gradient-to-r from-muted/50 to-muted/30 border-border/50 text-muted-foreground hover:from-cyber-cyan/20 hover:to-cyber-blue/20 hover:border-cyber-cyan/60 hover:text-cyber-cyan hover:shadow-[0_0_15px_rgba(6,255,240,0.3)]'
                         }`}
                         type="button"
+                        title="View or add comments"
                       >
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 group-hover:animate-shimmer"></div>
-                        {dayNote ? (
+                        {hasComments ? (
                           <>
-                            <StickyNote className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform" />
-                            <span className="text-xs relative z-10">📝</span>
+                            <MessageSquare className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform fill-cyber-yellow/30" />
+                            <span className="text-xs relative z-10">{dayNote.length}</span>
                           </>
                         ) : (
                           <>
-                            <Plus className="w-4 h-4 relative z-10 group-hover:rotate-90 transition-transform duration-300" />
-                            <span className="text-xs relative z-10">📄</span>
+                            <MessageSquare className="w-4 h-4 relative z-10 group-hover:scale-110 transition-transform" />
+                            <span className="text-xs relative z-10">💬</span>
                           </>
                         )}
                       </button>
@@ -362,14 +368,20 @@ export function Calendar({
         </div>
       </div>
 
-      {/* Rich Text Editor Modal */}
-      <RichTextEditor
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        value={selectedNote}
-        onSave={handleNoteSave}
-        date={selectedDate}
-      />
+      {/* Day Notes Thread Dialog */}
+      {currentUser && (
+        <DayNotesThread
+          date={selectedDate}
+          comments={notes[selectedDate] || []}
+          isOpen={notesOpen}
+          isLocked={isLocked}
+          currentUser={currentUser}
+          onClose={() => setNotesOpen(false)}
+          onAddComment={(text) => onAddComment(selectedDate, text)}
+          onEditComment={(commentId, newText) => onEditComment(selectedDate, commentId, newText)}
+          onDeleteComment={(commentId) => onDeleteComment(selectedDate, commentId)}
+        />
+      )}
 
       {/* User Selection Dialog */}
       <Dialog open={userSelectOpen} onOpenChange={setUserSelectOpen}>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings as SettingsIcon, X } from 'lucide-react'
+import { Settings as SettingsIcon, Shuffle, Calendar, TrendingUp, Minimize2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
+import type { MonthSettings, StrategyConfig } from '@/types'
 
 export interface WeightSettings {
   weekdayWeight: number
@@ -19,15 +20,49 @@ export interface WeightSettings {
 }
 
 interface SettingsProps {
-  settings: WeightSettings
+  settings: MonthSettings
   currentMonth?: string // e.g., "November 2025"
-  onSettingsChange: (settings: WeightSettings, isMonthSpecific: boolean) => void
+  onSettingsChange: (settings: MonthSettings, isMonthSpecific: boolean) => void
 }
 
+const STRATEGY_OPTIONS = [
+  {
+    value: 'balanced' as const,
+    label: 'Dengeli Dağılım',
+    icon: TrendingUp,
+    description: 'Ağırlıklara göre adil dağılım (Varsayılan)',
+    color: 'text-cyber-blue'
+  },
+  {
+    value: 'consecutive' as const,
+    label: 'Ardışık Günler',
+    icon: Calendar,
+    description: 'Kişiler belirli süre boyunca nöbet tutar (örn: haftalık)',
+    color: 'text-cyber-purple'
+  },
+  {
+    value: 'round-robin' as const,
+    label: 'Sıralı Rotasyon',
+    icon: Shuffle,
+    description: 'Basit sıralı rotasyon, ağırlık dikkate alınmaz',
+    color: 'text-cyber-pink'
+  },
+  {
+    value: 'minimize-weekends' as const,
+    label: 'Hafta Sonu Minimizasyonu',
+    icon: Minimize2,
+    description: 'Hafta sonu nöbetlerini adil dağıt',
+    color: 'text-green-400'
+  }
+]
+
 export function Settings({ settings, currentMonth, onSettingsChange }: SettingsProps) {
-  const [localSettings, setLocalSettings] = useState(settings)
+  const [localSettings, setLocalSettings] = useState<MonthSettings>(settings)
   const [saveForThisMonth, setSaveForThisMonth] = useState(false)
   const [open, setOpen] = useState(false)
+
+  const strategy = localSettings.strategyConfig?.strategy || 'balanced'
+  const consecutiveDays = localSettings.strategyConfig?.consecutiveDays || 7
 
   const handleSave = () => {
     onSettingsChange(localSettings, saveForThisMonth)
@@ -35,9 +70,39 @@ export function Settings({ settings, currentMonth, onSettingsChange }: SettingsP
   }
 
   const handleReset = () => {
-    const defaultSettings = { weekdayWeight: 1.0, weekendWeight: 1.5, holidayWeight: 2.0 }
+    const defaultSettings: MonthSettings = { 
+      weekdayWeight: 1.0, 
+      weekendWeight: 1.5, 
+      holidayWeight: 2.0,
+      strategyConfig: {
+        strategy: 'balanced',
+        consecutiveDays: 7
+      }
+    }
     setLocalSettings(defaultSettings)
     onSettingsChange(defaultSettings, saveForThisMonth)
+  }
+
+  const handleStrategyChange = (newStrategy: StrategyConfig['strategy']) => {
+    setLocalSettings({
+      ...localSettings,
+      strategyConfig: {
+        ...localSettings.strategyConfig,
+        strategy: newStrategy,
+        consecutiveDays: newStrategy === 'consecutive' ? (consecutiveDays || 7) : undefined
+      }
+    })
+  }
+
+  const handleConsecutiveDaysChange = (days: number) => {
+    setLocalSettings({
+      ...localSettings,
+      strategyConfig: {
+        ...localSettings.strategyConfig,
+        strategy: strategy,
+        consecutiveDays: days
+      }
+    })
   }
 
   return (
@@ -50,14 +115,14 @@ export function Settings({ settings, currentMonth, onSettingsChange }: SettingsP
           <SettingsIcon className="w-6 h-6 text-white group-hover:rotate-90 transition-transform duration-300" />
         </button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <SettingsIcon className="w-6 h-6 text-cyber-blue" />
-            <span className="glow-text">Ağırlık Ayarları</span>
+            <span className="glow-text">Schedule Ayarları</span>
           </DialogTitle>
           <DialogDescription>
-            Hafta içi ve hafta sonu günlerinin ağırlıklarını özelleştirin
+            Nöbet atama stratejisi ve ağırlıkları özelleştirin
             {currentMonth && (
               <div className="mt-2 text-xs">
                 <strong className="text-foreground">Aktif Ay:</strong> {currentMonth}
@@ -67,97 +132,161 @@ export function Settings({ settings, currentMonth, onSettingsChange }: SettingsP
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Weekday Weight */}
+          {/* Strategy Selection */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">
-                Hafta İçi Ağırlığı
-              </label>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-cyber-blue">
-                  {localSettings.weekdayWeight.toFixed(1)}
-                </span>
-                <span className="text-xs text-muted-foreground">x</span>
-              </div>
+            <label className="text-sm font-medium text-foreground flex items-center gap-2">
+              <Shuffle className="w-4 h-4" />
+              Otomatik Atama Stratejisi
+            </label>
+            <div className="grid grid-cols-1 gap-2">
+              {STRATEGY_OPTIONS.map((option) => {
+                const Icon = option.icon
+                const isSelected = strategy === option.value
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleStrategyChange(option.value)}
+                    className={`
+                      p-3 rounded-lg border-2 transition-all text-left
+                      ${isSelected 
+                        ? 'border-cyber-blue bg-cyber-blue/10 shadow-[0_0_15px_rgba(58,134,255,0.3)]' 
+                        : 'border-border hover:border-cyber-blue/50 bg-card'
+                      }
+                    `}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Icon className={`w-5 h-5 mt-0.5 ${isSelected ? 'text-cyber-blue' : option.color}`} />
+                      <div className="flex-1">
+                        <div className="font-medium text-foreground">{option.label}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{option.description}</div>
+                      </div>
+                      {isSelected && (
+                        <div className="w-2 h-2 rounded-full bg-cyber-blue animate-pulse" />
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
-            <Slider
-              value={[localSettings.weekdayWeight]}
-              onValueChange={([value]) =>
-                setLocalSettings({ ...localSettings, weekdayWeight: value })
-              }
-              min={0.5}
-              max={3}
-              step={0.1}
-              className="w-full"
-            />
-            <p className="text-xs text-muted-foreground">
-              Pazartesi - Cuma günleri için ağırlık çarpanı
-            </p>
           </div>
 
-          {/* Weekend Weight */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">
-                Hafta Sonu Ağırlığı
-              </label>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-cyber-purple">
-                  {localSettings.weekendWeight.toFixed(1)}
-                </span>
-                <span className="text-xs text-muted-foreground">x</span>
+          {/* Consecutive Days Configuration */}
+          {strategy === 'consecutive' && (
+            <div className="space-y-3 p-4 bg-card border-2 border-cyber-purple/30 rounded-lg">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">
+                  Ardışık Gün Sayısı
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-cyber-purple">
+                    {consecutiveDays}
+                  </span>
+                  <span className="text-xs text-muted-foreground">gün</span>
+                </div>
               </div>
+              <Slider
+                value={[consecutiveDays]}
+                onValueChange={([value]) => handleConsecutiveDaysChange(value)}
+                min={1}
+                max={30}
+                step={1}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Her kişi kaç gün üst üste nöbet tutacak? (örn: 7 = haftalık rotasyon)
+              </p>
             </div>
-            <Slider
-              value={[localSettings.weekendWeight]}
-              onValueChange={([value]) =>
-                setLocalSettings({ ...localSettings, weekendWeight: value })
-              }
-              min={0.5}
-              max={3}
-              step={0.1}
-              className="w-full"
-            />
-            <p className="text-xs text-muted-foreground">
-              Cumartesi - Pazar günleri için ağırlık çarpanı
-            </p>
-          </div>
+          )}
 
-          {/* Holiday Weight */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">
-                Resmi Tatil Ağırlığı
-              </label>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-cyber-pink">
-                  {localSettings.holidayWeight.toFixed(1)}
+          {/* Divider */}
+          <div className="border-t border-border" />
+
+          {/* Weight Settings */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Gün Ağırlıkları
+              {strategy !== 'balanced' && (
+                <span className="text-xs text-muted-foreground ml-auto">
+                  (Sadece &quot;Dengeli Dağılım&quot; stratejisinde aktif)
                 </span>
-                <span className="text-xs text-muted-foreground">x</span>
-              </div>
-            </div>
-            <Slider
-              value={[localSettings.holidayWeight]}
-              onValueChange={([value]) =>
-                setLocalSettings({ ...localSettings, holidayWeight: value })
-              }
-              min={0.5}
-              max={5}
-              step={0.1}
-              className="w-full"
-            />
-            <p className="text-xs text-muted-foreground">
-              Resmi tatil günleri için ağırlık çarpanı (23 Nisan, 29 Ekim, vb.)
-            </p>
-          </div>
+              )}
+            </h3>
 
-          {/* Info Box */}
-          <div className="p-4 bg-muted/50 border border-border rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              <strong className="text-foreground">💡 İpucu:</strong> Resmi tatil 
-              günlerini en yüksek ağırlıkla ayarlayarak, bu günlerin daha değerli
-              sayılmasını sağlayabilirsiniz.
-            </p>
+            {/* Weekday Weight */}
+            <div className="space-y-3 opacity-100">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">
+                  Hafta İçi Ağırlığı
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-cyber-blue">
+                    {(localSettings.weekdayWeight || 1.0).toFixed(1)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">x</span>
+                </div>
+              </div>
+              <Slider
+                value={[localSettings.weekdayWeight || 1.0]}
+                onValueChange={([value]) =>
+                  setLocalSettings({ ...localSettings, weekdayWeight: value })
+                }
+                min={0.5}
+                max={3}
+                step={0.1}
+                className="w-full"
+              />
+            </div>
+
+            {/* Weekend Weight */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">
+                  Hafta Sonu Ağırlığı
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-cyber-purple">
+                    {(localSettings.weekendWeight || 1.5).toFixed(1)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">x</span>
+                </div>
+              </div>
+              <Slider
+                value={[localSettings.weekendWeight || 1.5]}
+                onValueChange={([value]) =>
+                  setLocalSettings({ ...localSettings, weekendWeight: value })
+                }
+                min={0.5}
+                max={3}
+                step={0.1}
+                className="w-full"
+              />
+            </div>
+
+            {/* Holiday Weight */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">
+                  Resmi Tatil Ağırlığı
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-cyber-pink">
+                    {(localSettings.holidayWeight || 2.0).toFixed(1)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">x</span>
+                </div>
+              </div>
+              <Slider
+                value={[localSettings.holidayWeight || 2.0]}
+                onValueChange={([value]) =>
+                  setLocalSettings({ ...localSettings, holidayWeight: value })
+                }
+                min={0.5}
+                max={5}
+                step={0.1}
+                className="w-full"
+              />
+            </div>
           </div>
 
           {/* Month-Specific Setting Option */}
@@ -183,30 +312,6 @@ export function Settings({ settings, currentMonth, onSettingsChange }: SettingsP
               </label>
             </div>
           )}
-
-          {/* Comparison */}
-          <div className="flex items-center justify-between p-4 bg-card border border-border rounded-lg">
-            <div className="text-center flex-1">
-              <div className="text-xs text-muted-foreground mb-1">Hafta İçi</div>
-              <div className="text-lg font-bold text-cyber-blue">
-                {localSettings.weekdayWeight.toFixed(1)}x
-              </div>
-            </div>
-            <div className="text-muted-foreground">vs</div>
-            <div className="text-center flex-1">
-              <div className="text-xs text-muted-foreground mb-1">Hafta Sonu</div>
-              <div className="text-lg font-bold text-cyber-purple">
-                {localSettings.weekendWeight.toFixed(1)}x
-              </div>
-            </div>
-            <div className="text-muted-foreground">vs</div>
-            <div className="text-center flex-1">
-              <div className="text-xs text-muted-foreground mb-1">Resmi Tatil</div>
-              <div className="text-lg font-bold text-cyber-pink">
-                {localSettings.holidayWeight.toFixed(1)}x
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Actions */}

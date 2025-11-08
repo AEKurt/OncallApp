@@ -17,6 +17,24 @@ export interface WeightSettings {
   holidayWeight: number
 }
 
+export type ScheduleStrategy = 
+  | 'balanced'           // Default: Fair distribution by weight
+  | 'consecutive'        // Consecutive days (e.g., weekly rotations)
+  | 'round-robin'        // Simple rotation regardless of weight
+  | 'random'             // Random assignment
+  | 'minimize-weekends'  // Minimize weekend assignments per person
+
+export interface ScheduleStrategyConfig {
+  strategy: ScheduleStrategy
+  consecutiveDays?: number  // For consecutive strategy (default: 7)
+  seed?: number            // For random strategy
+}
+
+export const DEFAULT_STRATEGY_CONFIG: ScheduleStrategyConfig = {
+  strategy: 'balanced',
+  consecutiveDays: 7,
+}
+
 export const DEFAULT_WEIGHTS: WeightSettings = {
   weekdayWeight: 1.0,
   weekendWeight: 1.5,
@@ -65,7 +83,8 @@ export function getDayWeight(date: Date, settings: WeightSettings = DEFAULT_WEIG
 export function generateSchedule(
   users: User[], 
   currentDate: Date,
-  settings: WeightSettings = DEFAULT_WEIGHTS
+  settings: WeightSettings = DEFAULT_WEIGHTS,
+  strategyConfig: ScheduleStrategyConfig = DEFAULT_STRATEGY_CONFIG
 ): ExtendedSchedule {
   if (users.length === 0) return {}
 
@@ -73,6 +92,28 @@ export function generateSchedule(
   const monthEnd = endOfMonth(currentDate)
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
+  // Route to appropriate strategy
+  switch (strategyConfig.strategy) {
+    case 'consecutive':
+      return generateConsecutiveSchedule(users, daysInMonth, settings, strategyConfig.consecutiveDays || 7)
+    case 'round-robin':
+      return generateRoundRobinSchedule(users, daysInMonth, settings)
+    case 'random':
+      return generateRandomSchedule(users, daysInMonth, settings, strategyConfig.seed)
+    case 'minimize-weekends':
+      return generateMinimizeWeekendsSchedule(users, daysInMonth, settings)
+    case 'balanced':
+    default:
+      return generateBalancedSchedule(users, daysInMonth, settings)
+  }
+}
+
+// Strategy 1: Balanced (Original) - Fair distribution by weight
+function generateBalancedSchedule(
+  users: User[],
+  daysInMonth: Date[],
+  settings: WeightSettings
+): ExtendedSchedule {
   const schedule: ExtendedSchedule = {}
   const primaryWeights: { [userId: string]: number } = {}
   const secondaryWeights: { [userId: string]: number } = {}
@@ -100,13 +141,11 @@ export function generateSchedule(
     })
     
     // Find user with minimum secondary weight for secondary assignment
-    // Make sure it's not the same as primary
     let minSecondaryWeight = Infinity
     let selectedSecondaryId: string | undefined = undefined
     
     if (users.length > 1) {
       users.forEach(user => {
-        // Skip the primary user
         if (user.id === selectedPrimaryId) return
         
         if (secondaryWeights[user.id] < minSecondaryWeight) {
@@ -116,16 +155,229 @@ export function generateSchedule(
       })
     }
     
-    // Assign to schedule
     schedule[dateString] = {
       primary: selectedPrimaryId,
       ...(selectedSecondaryId ? { secondary: selectedSecondaryId } : {})
     }
     
-    // Update weights (secondary gets less weight than primary)
     primaryWeights[selectedPrimaryId] += dayWeight
     if (selectedSecondaryId) {
-      secondaryWeights[selectedSecondaryId] += dayWeight * 0.5 // Secondary gets 50% weight
+      secondaryWeights[selectedSecondaryId] += dayWeight * 0.5
+    }
+  })
+
+  return schedule
+}
+
+// Strategy 2: Consecutive Days - People work consecutive days (e.g., weekly rotations)
+function generateConsecutiveSchedule(
+  users: User[],
+  daysInMonth: Date[],
+  settings: WeightSettings,
+  consecutiveDays: number
+): ExtendedSchedule {
+  const schedule: ExtendedSchedule = {}
+  let currentUserIndex = 0
+  let currentSecondaryIndex = 1 % users.length
+  let dayCount = 0
+
+  daysInMonth.forEach(date => {
+    const dateString = format(date, 'yyyy-MM-dd')
+    
+    // Switch to next user after consecutiveDays
+    if (dayCount >= consecutiveDays) {
+      currentUserIndex = (currentUserIndex + 1) % users.length
+      currentSecondaryIndex = (currentUserIndex + 1) % users.length
+      dayCount = 0
+    }
+    
+    const primaryUser = users[currentUserIndex]
+    const secondaryUser = users.length > 1 ? users[currentSecondaryIndex] : undefined
+    
+    schedule[dateString] = {
+      primary: primaryUser.id,
+      ...(secondaryUser ? { secondary: secondaryUser.id } : {})
+    }
+    
+    dayCount++
+  })
+
+  return schedule
+}
+
+// Strategy 3: Round Robin - Simple rotation every day
+function generateRoundRobinSchedule(
+  users: User[],
+  daysInMonth: Date[],
+  settings: WeightSettings
+): ExtendedSchedule {
+  const schedule: ExtendedSchedule = {}
+  let currentIndex = 0
+
+  daysInMonth.forEach(date => {
+    const dateString = format(date, 'yyyy-MM-dd')
+    
+    const primaryUser = users[currentIndex]
+    const secondaryIndex = (currentIndex + 1) % users.length
+    const secondaryUser = users.length > 1 ? users[secondaryIndex] : undefined
+    
+    schedule[dateString] = {
+      primary: primaryUser.id,
+      ...(secondaryUser ? { secondary: secondaryUser.id } : {})
+    }
+    
+    currentIndex = (currentIndex + 1) % users.length
+  })
+
+  return schedule
+}
+
+// Strategy 4: Random - Random assignment with constraints
+function generateRandomSchedule(
+  users: User[],
+  daysInMonth: Date[],
+  settings: WeightSettings,
+  seed?: number
+): ExtendedSchedule {
+  const schedule: ExtendedSchedule = {}
+  
+  // Simple seeded random for reproducibility
+  let randomSeed = seed || Date.now()
+  const seededRandom = () => {
+    randomSeed = (randomSeed * 9301 + 49297) % 233280
+    return randomSeed / 233280
+  }
+
+  daysInMonth.forEach(date => {
+    const dateString = format(date, 'yyyy-MM-dd')
+    
+    // Random primary
+    const primaryIndex = Math.floor(seededRandom() * users.length)
+    const primaryUser = users[primaryIndex]
+    
+    // Random secondary (different from primary)
+    let secondaryUser: User | undefined
+    if (users.length > 1) {
+      let secondaryIndex
+      do {
+        secondaryIndex = Math.floor(seededRandom() * users.length)
+      } while (secondaryIndex === primaryIndex && users.length > 1)
+      secondaryUser = users[secondaryIndex]
+    }
+    
+    schedule[dateString] = {
+      primary: primaryUser.id,
+      ...(secondaryUser ? { secondary: secondaryUser.id } : {})
+    }
+  })
+
+  return schedule
+}
+
+// Strategy 5: Minimize Weekends - Distribute weekend load fairly
+function generateMinimizeWeekendsSchedule(
+  users: User[],
+  daysInMonth: Date[],
+  settings: WeightSettings
+): ExtendedSchedule {
+  const schedule: ExtendedSchedule = {}
+  const weekendCounts: { [userId: string]: number } = {}
+  const totalCounts: { [userId: string]: number } = {}
+  
+  users.forEach(user => {
+    weekendCounts[user.id] = 0
+    totalCounts[user.id] = 0
+  })
+
+  // Separate weekends and weekdays
+  const weekends: Date[] = []
+  const weekdays: Date[] = []
+  
+  daysInMonth.forEach(date => {
+    if (checkIsWeekend(date) || isPublicHoliday(date)) {
+      weekends.push(date)
+    } else {
+      weekdays.push(date)
+    }
+  })
+
+  // Assign weekends first (fair distribution)
+  weekends.forEach(date => {
+    const dateString = format(date, 'yyyy-MM-dd')
+    
+    // Find user with minimum weekend assignments
+    let minWeekendCount = Infinity
+    let selectedPrimaryId = users[0].id
+    
+    users.forEach(user => {
+      if (weekendCounts[user.id] < minWeekendCount) {
+        minWeekendCount = weekendCounts[user.id]
+        selectedPrimaryId = user.id
+      }
+    })
+    
+    // Secondary with second-lowest weekend count
+    let secondMinWeekendCount = Infinity
+    let selectedSecondaryId: string | undefined
+    
+    if (users.length > 1) {
+      users.forEach(user => {
+        if (user.id === selectedPrimaryId) return
+        if (weekendCounts[user.id] < secondMinWeekendCount) {
+          secondMinWeekendCount = weekendCounts[user.id]
+          selectedSecondaryId = user.id
+        }
+      })
+    }
+    
+    schedule[dateString] = {
+      primary: selectedPrimaryId,
+      ...(selectedSecondaryId ? { secondary: selectedSecondaryId } : {})
+    }
+    
+    weekendCounts[selectedPrimaryId]++
+    totalCounts[selectedPrimaryId]++
+    if (selectedSecondaryId) {
+      weekendCounts[selectedSecondaryId]++
+      totalCounts[selectedSecondaryId]++
+    }
+  })
+
+  // Assign weekdays (balanced)
+  weekdays.forEach(date => {
+    const dateString = format(date, 'yyyy-MM-dd')
+    
+    let minTotalCount = Infinity
+    let selectedPrimaryId = users[0].id
+    
+    users.forEach(user => {
+      if (totalCounts[user.id] < minTotalCount) {
+        minTotalCount = totalCounts[user.id]
+        selectedPrimaryId = user.id
+      }
+    })
+    
+    let secondMinTotalCount = Infinity
+    let selectedSecondaryId: string | undefined
+    
+    if (users.length > 1) {
+      users.forEach(user => {
+        if (user.id === selectedPrimaryId) return
+        if (totalCounts[user.id] < secondMinTotalCount) {
+          secondMinTotalCount = totalCounts[user.id]
+          selectedSecondaryId = user.id
+        }
+      })
+    }
+    
+    schedule[dateString] = {
+      primary: selectedPrimaryId,
+      ...(selectedSecondaryId ? { secondary: selectedSecondaryId } : {})
+    }
+    
+    totalCounts[selectedPrimaryId]++
+    if (selectedSecondaryId) {
+      totalCounts[selectedSecondaryId]++
     }
   })
 
@@ -136,9 +388,16 @@ export function calculateUserWeights(
   users: User[], 
   schedule: ExtendedSchedule, 
   currentDate: Date,
-  settings: WeightSettings = DEFAULT_WEIGHTS
+  settings: WeightSettings | { weekdayWeight?: number; weekendWeight?: number; holidayWeight?: number } = DEFAULT_WEIGHTS
 ): { [userId: string]: { primary: number; secondary: number; total: number } } {
   const weights: { [userId: string]: { primary: number; secondary: number; total: number } } = {}
+  
+  // Extract weight settings (MonthSettings might have extra fields like strategyConfig)
+  const weightSettings: WeightSettings = {
+    weekdayWeight: settings.weekdayWeight || 1.0,
+    weekendWeight: settings.weekendWeight || 1.5,
+    holidayWeight: settings.holidayWeight || 2.0
+  }
   
   users.forEach(user => {
     weights[user.id] = { primary: 0, secondary: 0, total: 0 }
@@ -152,7 +411,7 @@ export function calculateUserWeights(
     const dateString = format(date, 'yyyy-MM-dd')
     const assignment = schedule[dateString]
     if (assignment) {
-      const dayWeight = getDayWeight(date, settings)
+      const dayWeight = getDayWeight(date, weightSettings)
       
       // Add primary weight
       if (assignment.primary && weights[assignment.primary]) {

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { User, ExtendedSchedule } from '@/types'
-import { calculateUserWeights, WeightSettings, DEFAULT_WEIGHTS } from '@/lib/scheduler'
+import { User, ExtendedSchedule, MonthSettings } from '@/types'
+import { calculateUserWeights } from '@/lib/scheduler'
 import { BarChart3, TrendingUp, Users as UsersIcon, Award } from 'lucide-react'
 import {
   Dialog,
@@ -17,10 +17,10 @@ interface StatisticsProps {
   users: User[]
   schedule: ExtendedSchedule
   currentDate: Date
-  settings?: WeightSettings
+  settings?: MonthSettings
 }
 
-export function Statistics({ users, schedule, currentDate, settings = DEFAULT_WEIGHTS }: StatisticsProps) {
+export function Statistics({ users, schedule, currentDate, settings = { weekdayWeight: 1.0, weekendWeight: 1.5, holidayWeight: 2.0 } }: StatisticsProps) {
   const [open, setOpen] = useState(false)
   const userWeights = calculateUserWeights(users, schedule, currentDate, settings)
 
