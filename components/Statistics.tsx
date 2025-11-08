@@ -158,28 +158,28 @@ export function Statistics({ users, schedule, currentDate, settings = { weekdayW
                               background: `linear-gradient(90deg, ${user.color || '#3b82f6'}dd, ${user.color || '#3b82f6'})`
                             }}
                           >
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
-                          </div>
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
                         </div>
-                        {weight > 0 && (
-                          <div className="text-xs text-muted-foreground pl-1">
-                            {avgWeight > 0 && (
-                              <span>
-                                {weight > avgWeight + 0.5 ? (
-                                  <span className="text-cyber-pink font-medium">
-                                    ▲ Ortalamanın %{((weight / avgWeight - 1) * 100).toFixed(0)} üstünde
-                                  </span>
-                                ) : weight < avgWeight - 0.5 ? (
-                                  <span className="text-cyber-green font-medium">
-                                    ▼ Ortalamanın %{((1 - weight / avgWeight) * 100).toFixed(0)} altında
-                                  </span>
-                                ) : (
-                                  <span className="text-cyber-cyan font-medium">✓ Ortalama seviyede</span>
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                      </div>
+                      {weight.total > 0 && (
+                        <div className="text-xs text-muted-foreground pl-1">
+                          {avgWeight > 0 && (
+                            <span>
+                              {weight.total > avgWeight + 0.5 ? (
+                                <span className="text-cyber-pink font-medium">
+                                  ▲ Ortalamanın %{((weight.total / avgWeight - 1) * 100).toFixed(0)} üstünde
+                                </span>
+                              ) : weight.total < avgWeight - 0.5 ? (
+                                <span className="text-cyber-green font-medium">
+                                  ▼ Ortalamanın %{((1 - weight.total / avgWeight) * 100).toFixed(0)} altında
+                                </span>
+                              ) : (
+                                <span className="text-cyber-cyan font-medium">✓ Ortalama seviyede</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       </div>
                     )
                   })}
@@ -192,14 +192,14 @@ export function Statistics({ users, schedule, currentDate, settings = { weekdayW
                   <h4 className="font-bold text-foreground mb-2 flex items-center gap-2">
                     <span className="text-2xl">🎯</span>
                     <span>Adil Dağılım</span>
-                  </h4>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Algoritma, her kullanıcının eşit ağırlıkta yük almasını sağlar.
-                    Hafta içi günleri <strong className="text-cyber-blue">{settings.weekdayWeight.toFixed(1)}x</strong>,
-                    hafta sonu günleri <strong className="text-cyber-purple">{settings.weekendWeight.toFixed(1)}x</strong>,
-                    resmi tatil günleri <strong className="text-cyber-pink">{settings.holidayWeight.toFixed(1)}x</strong> ağırlığa sahiptir.
-                  </p>
-                </div>
+                </h4>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Algoritma, her kullanıcının eşit ağırlıkta yük almasını sağlar.
+                  Hafta içi günleri <strong className="text-cyber-blue">{(settings.weekdayWeight ?? 1.0).toFixed(1)}x</strong>,
+                  hafta sonu günleri <strong className="text-cyber-purple">{(settings.weekendWeight ?? 1.5).toFixed(1)}x</strong>,
+                  resmi tatil günleri <strong className="text-cyber-pink">{(settings.holidayWeight ?? 2.0).toFixed(1)}x</strong> ağırlığa sahiptir.
+                </p>
+              </div>
               )}
             </div>
           </div>

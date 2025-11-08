@@ -247,7 +247,8 @@ export function DayNotesThread({
                               />
                             ),
                             // Custom code block styling
-                            code: ({ node, inline, className, children, ...props }) => {
+                            code: ({ node, className, children, ...props }: any) => {
+                              const inline = !className || !className.includes('language-')
                               return inline ? (
                                 <code
                                   className="px-1.5 py-0.5 bg-muted rounded text-cyber-pink font-mono text-xs"
@@ -257,7 +258,7 @@ export function DayNotesThread({
                                 </code>
                               ) : (
                                 <code
-                                  className="block px-3 py-2 bg-muted rounded-lg font-mono text-xs overflow-x-auto"
+                                  className={`block px-3 py-2 bg-muted rounded-lg font-mono text-xs overflow-x-auto ${className || ''}`}
                                   {...props}
                                 >
                                   {children}
