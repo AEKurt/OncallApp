@@ -258,7 +258,7 @@ export function Calendar({
             const isCurrentMonth = isSameMonth(date, currentDate)
             const isCurrentDay = isToday(date)
             const dayWeight = getDayWeight(date, settings)
-            const isWeekendDay = dayWeight > settings.weekdayWeight && !isPublicHoliday(date)
+            const isWeekendDay = dayWeight > (settings.weekdayWeight ?? 1.0) && !isPublicHoliday(date)
             const isHoliday = isPublicHoliday(date)
             const holidayName = getHolidayName(date)
 
